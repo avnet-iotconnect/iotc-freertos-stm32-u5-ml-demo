@@ -1,0 +1,5 @@
+/*
+
+!/.gitignore
+!/iotc*
+!/mic_sensor_publish.c
