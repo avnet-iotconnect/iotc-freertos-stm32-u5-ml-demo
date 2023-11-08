@@ -1,7 +1,11 @@
 /*
 
 !/.gitignore
+
 !/README.md
+!/QUICKSTART.md
+
 !/stm32
 !/scripts
 !/models
+!/media

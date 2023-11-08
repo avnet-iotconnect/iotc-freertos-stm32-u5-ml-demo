@@ -65,6 +65,7 @@ extern UBaseType_t uxRand(void);
 #define MQTT_PUBLISH_TIME_BETWEEN_MS (5000)
 #define MQTT_PUBLISH_TOPIC "mic_sensor_data"
 #define MQTT_PUBLICH_TOPIC_STR_LEN (256)
+#define IOTC_CD_MAX_LEN (10)
 #define MQTT_PUBLISH_BLOCK_TIME_MS (1000)
 #define MQTT_PUBLISH_NOTIFICATION_WAIT_MS (1000)
 
@@ -246,7 +247,6 @@ void vMicSensorPublishTask(void *pvParameters)
 	char payloadBuf[MQTT_PUBLISH_MAX_LEN];
 	MQTTAgentHandle_t xAgentHandle = NULL;
 	char pcTopicString[MQTT_PUBLICH_TOPIC_STR_LEN] = {0};
-	size_t uxTopicLen = 0;
 	uint32_t ulNotifiedValue = 0;
 
 	(void)pvParameters; /* unused parameter */
@@ -290,20 +290,27 @@ void vMicSensorPublishTask(void *pvParameters)
 	xAudioProcCtx.output_Q_inv_scale = xAIProcCtx.input_Q_inv_scale;
 
     char pcDeviceId[MQTT_PUBLICH_TOPIC_STR_LEN];
-	uxTopicLen = KVStore_getString(CS_CORE_THING_NAME, pcDeviceId, MQTT_PUBLICH_TOPIC_STR_LEN);
+    size_t uxDevNameLen = KVStore_getString(CS_CORE_THING_NAME, pcDeviceId, MQTT_PUBLICH_TOPIC_STR_LEN);
+    char pcIotcCd[IOTC_CD_MAX_LEN]; // IoTConnect CD value
+    size_t uxCidLen = KVStore_getString(CS_IOTC_CD, pcIotcCd, IOTC_CD_MAX_LEN);
 
-	if (uxTopicLen > 0)
+    size_t uxTopicLen = 0;
+	if (uxDevNameLen > 0 && uxCidLen > 0)
 	{
-        sprintf(pcTopicString, "$aws/rules/msg_d2c_rpt/%s/XG4ENRV/2.1/0", pcDeviceId);
+        sprintf(pcTopicString, "$aws/rules/msg_d2c_rpt/%s/%s/2.1/0", pcDeviceId, pcIotcCd);
 		//strcpy(pcTopicString, "$aws/rules/msg_d2c_rpt/IotStagedevIotStackCode8EEB880A-nik1/XG4ENRV/2.1/0");
-		uxTopicLen = strlen(pcTopicString);
+        uxTopicLen = strlen(pcTopicString);
 		//uxTopicLen = strlcat(pcTopicString, "/" MQTT_PUBLISH_TOPIC, MQTT_PUBLICH_TOPIC_STR_LEN);
 	}
 
 	if ((uxTopicLen == 0) || (uxTopicLen >= MQTT_PUBLICH_TOPIC_STR_LEN))
 	{
-		LogError("Failed to construct topic string.");
-		xExitFlag = pdTRUE;
+		LogError("Failed to construct topic string. Please configure the device");
+		while (true) {
+			vTaskDelay( 10000 ); // wait forever
+		}
+
+		// xExitFlag = pdTRUE;
 	}
 	vSleepUntilMQTTAgentReady();
 
@@ -353,8 +360,10 @@ void vMicSensorPublishTask(void *pvParameters)
 			}
 			/* Write to */
 			bytesWritten = snprintf(payloadBuf, (size_t)MQTT_PUBLISH_MAX_LEN,
-					"{\"d\":[{\"d\":{\"version\":\"MLDEMO-1.0\",\"class\":\"%s\"}}],\"mt\":0,\"cd\":\"XG4E2EW\"}",
-					sAiClassLabels[max_idx]);
+					"{\"d\":[{\"d\":{\"version\":\"MLDEMO-1.0\",\"class\":\"%s\"}}],\"mt\":0,\"cd\":\"%s\"}",
+					sAiClassLabels[max_idx],
+					pcIotcCd
+			);
 
 			if (xIsMqttConnected() == pdTRUE)
 			{
