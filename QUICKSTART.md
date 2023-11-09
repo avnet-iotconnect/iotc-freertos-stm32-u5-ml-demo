@@ -1,20 +1,20 @@
-# Quickstart Instructions
+# QuickStart and Device Setup Instructions
+
 
 ## Firmware Flashing
-
 * Download and install a serial console application (TeraTerm for example) and STM32CubeProgrammer
-* Download and unzip [b_u585i_iot02a_ntz_v1_0.zip](https://saleshosted.z13.web.core.windows.net/demo/st/b_u585i_iot02a_ntz_v1_0.zip)
-* Connect the board with a Micro USB to a PC cable (**not** the USB-C port)  
-* Open the STM32CubeProgrammer and connect to the board by clicking the *Connect* button on the top right.
+* Download and extract [b_u585i_iot02a_ntz_v1_0.zip](https://saleshosted.z13.web.core.windows.net/demo/st/b_u585i_iot02a_ntz_v1_0.zip)
+* Connect the board with a Micro USB to a PC cable located on the top of the board.
+Do not connect the USB-C port or the micro USB port at the bottom.  
+* Open the STM32CubeProgrammer and connect it to the board by clicking the *Connect* button on the top right.
 * Click the *Erasing&Programming* button (second button on the left sidebar) 
-  * It is sometimes beneficial to run a *Full Chip Erase* (top right of the screen), but this step is optional.
+  * It is recommended to run a *Full Chip Erase* (top right of the screen), but this step is optional.
   * Click *Browse* and navigate to your unzipped .bin file.
-  * *Start Address* should be auto-detected to 0x08000000
-  * Click the *Start Programming* button.
-    
-![STM32CubeProgrammer](media/programmer-flash.png "STM32CubeProgrammer")
+  * *Start Address* should be auto-detected to 0x08000000.
+  * Click the *Start Programming* button (see the screenshot below).
+* Once flashing is complete Disconnect the board from the programmer and re-plug the device.    
 
-Once flashing is complete Disconnect the board from the programmer and re-plug the device.
+* ![STM32CubeProgrammer](media/programmer-flash.png "STM32CubeProgrammer")
 
 ## Configuring Device Certificates
 * To configure the Server CA certificate, a commands needs to be executed on the serial terminal console 
@@ -23,19 +23,19 @@ that will take the certificate as input.
 on the terminal to trigger the device to respond.
 * Next, we need to configure the Server CA certificate. 
 The command will expect the certificate to be pasted along with the BEGIN and END lines.
-If this process is successful, a log line will print like *Success: Certificate loaded to label: 'root_ca_cert'*.
+If this process is successful, a log line will print *Success: Certificate loaded to label: 'root_ca_cert'*.
 Ignore the "Could not open" warnings on the screen during the process.
 Run the following command and paste the
 [Starfield Root CA G2 Certificate](#Starfield-Root-CA-G2) below 
 at the ">" prompt:
   * pki import cert root_ca_cert
 * To generate the device's X509 credentials, we will need to generate a private key and
-a self-signed certificate based on the public key that's also generated internally in the step above.
+a self-signed certificate based on the public/private key pair that's also generated internally.
 Enter the following commands:
   * pki generate key
   * pki generate cert 
 * Capture the certificate output of the pki generate cert command along with BEGIN CERTIFICATE and 
-END CERTIFICATE lines and paste it into a file that we will upload during device creation.
+END CERTIFICATE lines and paste it into a file that we will upload during IoTConnect device setup below.
 * You can always obtain the same generated certificate by executing **pki export cert tls_cert** at the command prompt.
 * Keep the terminal application open. We will need it again to configure the device connection details.
 
@@ -46,9 +46,9 @@ END CERTIFICATE lines and paste it into a file that we will upload during device
   * "confidence" - data type INTEGER
 * Create a new device:
   * Select the above-mentioned template as the template during device creation.
-  * Choose the *Use my certificate* option for the *Device certificate* field.
-  * Do not select any *Certificate Authority*
-  * For the *Device Certificate* click the *Browse* button and select your file 
+  * Choose the *Use my certificate* option.
+  * Do not select any *Certificate Authority*.
+  * For the *Device Certificate* field at the bottom click the *Browse* button and select your file 
 where you saved the generated certificate in the steps above.
 * When complete, navigate to the device Info tab (should come up by default) and 
 click the *Connection Info* hyperlink on the top the right.
@@ -57,8 +57,8 @@ click the *Connection Info* hyperlink on the top the right.
 which we will use for the device runtime configuration in the next steps:
   * Your Unique Device ID that you used to create the device will be used as *thing_name*.
   * Host, which will be used for the *mqtt_endpoint* value.
-  * Reporting topic will be in a format: $aws/rules/msg_d2c_rpt/<yourdevice>/<cd>/2.1/0.
-Note the 7-capital-letter string like "XG2Y2M1" which we will use as *iotc_cd* value in the 
+  * Reporting topic will be in a format: $aws/rules/msg_d2c_rpt/yourdevice/ABCDEFG/2.1/0.
+Note the capital letter string CD value like "XG2Y2M1" which we will use as *iotc_cd* value in the 
 [Configuring Device Connection Parameters](#Configuring-Device-Connection-Parameters) steps below.
 
 ## Configuring Device Connection Parameters
@@ -70,9 +70,11 @@ Note the 7-capital-letter string like "XG2Y2M1" which we will use as *iotc_cd* v
 * Enter the following commands to set up the WiFi connection for your device: 
   * conf set wifi_ssid your-wifi-ssid 
   * conf set wifi_credential your-wifi-password
-* Verify values by typing  **conf get** and examining the output.
-* Type **conf commit**. Note that must commit the changes so that they take effect.
-* Type **reset** to reset the device.
+* Verify values by entering the **conf get** command and examining the output.
+* Enter **conf commit**. Note that must commit the changes so that they take effect.
+* Enter **reset** to reset the device.
+
+The device should connect at this point, and you should be able to see data in the Telemetry and Latest Value tabs.
 
 ## Starfield Root CA G2
 
