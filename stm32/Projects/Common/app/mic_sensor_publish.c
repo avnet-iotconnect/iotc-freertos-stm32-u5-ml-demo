@@ -359,9 +359,11 @@ void vMicSensorPublishTask(void *pvParameters)
 				}
 			}
 			/* Write to */
-			bytesWritten = snprintf(payloadBuf, (size_t)MQTT_PUBLISH_MAX_LEN,
-					"{\"d\":[{\"d\":{\"version\":\"MLDEMO-1.0\",\"class\":\"%s\"}}],\"mt\":0,\"cd\":\"%s\"}",
+			int confidence_score_percent = (int)(100.0 * max_out);
+			bytesWritten = (size_t) snprintf(payloadBuf, (size_t)MQTT_PUBLISH_MAX_LEN,
+					"{\"d\":[{\"d\":{\"version\":\"MLDEMO-1.0\",\"class\":\"%s\",\"confidence\":\"%d\"}}],\"mt\":0,\"cd\":\"%s\"}",
 					sAiClassLabels[max_idx],
+					confidence_score_percent,
 					pcIotcCd
 			);
 
