@@ -14,27 +14,91 @@
     
 ![STM32CubeProgrammer](media/programmer-flash.png "STM32CubeProgrammer")
 
-Once flashing is complete Disconnect the board from the programmer and unplug the device.
+Once flashing is complete Disconnect the board from the programmer and re-plug the device.
+
+## Configuring Device Certificates
+* To configure the Server CA certificate, a commands needs to be executed on the serial terminal console 
+that will take the certificate as input. 
+* Open the serial console terminal. If you are seeing no output, you can type **help**
+on the terminal to trigger the device to respond.
+* Next, we need to configure the Server CA certificate. 
+The command will expect the certificate to be pasted along with the BEGIN and END lines.
+If this process is successful, a log line will print like *Success: Certificate loaded to label: 'root_ca_cert'*.
+Ignore the "Could not open" warnings on the screen during the process.
+Run the following command and paste the
+[Starfield Root CA G2 Certificate](#Starfield-Root-CA-G2) below 
+at the ">" prompt:
+  * pki import cert root_ca_cert
+* To generate the device's X509 credentials, we will need to generate a private key and
+a self-signed certificate based on the public key that's also generated internally in the step above.
+Enter the following commands:
+  * pki generate key
+  * pki generate cert 
+* Capture the certificate output of the pki generate cert command along with BEGIN CERTIFICATE and 
+END CERTIFICATE lines and paste it into a file that we will upload during device creation.
+* You can always obtain the same generated certificate by executing **pki export cert tls_cert** at the command prompt.
+* Keep the terminal application open. We will need it again to configure the device connection details.
 
 ## IoTConnect setup
-* Add the following items to your template of choice:
+* Create a template and add the following items to your template of choice:
   * "version" - data type STRING
   * "class" - data type STRING
-* Create a new device
+  * "confidence" - data type INTEGER
+* Create a new device:
+  * Select the above-mentioned template as the template during device creation.
+  * Choose the *Use my certificate* option for the *Device certificate* field.
+  * Do not select any *Certificate Authority*
+  * For the *Device Certificate* click the *Browse* button and select your file 
+where you saved the generated certificate in the steps above.
+* When complete, navigate to the device Info tab (should come up by default) and 
+click the *Connection Info* hyperlink on the top the right.
+* Download and extract the device certificate by clicking the golden colored certificate icon on the top right.
 * Note the following values in the device *Connection info* screen 
-which we will use for the device runtime configuration in the next step:
-  * Your Unique Device ID that you used to create the device will be used as *mqtt_endpoint*.
-  * Host, which will be used as *thing_name*.
+which we will use for the device runtime configuration in the next steps:
+  * Your Unique Device ID that you used to create the device will be used as *thing_name*.
+  * Host, which will be used for the *mqtt_endpoint* value.
   * Reporting topic will be in a format: $aws/rules/msg_d2c_rpt/<yourdevice>/<cd>/2.1/0.
-Note the 7-capital-letter string, which we will use as *iotc_cd* value in the next steps. 
-* Plug in the device and open a serial terminal application.
-* Enter the following commands to configure your device:
-  * conf set wifi_ssid your-wifi-ssid 
-  * conf set wifi_credential your-wifi-password
+Note the 7-capital-letter string like "XG2Y2M1" which we will use as *iotc_cd* value in the 
+[Configuring Device Connection Parameters](#Configuring-Device-Connection-Parameters) steps below.
+
+## Configuring Device Connection Parameters
+* Enter the following commands on the serial terminal to configure the MQTT connection:
   * conf set thing_name your-device-id
+  * conf set iotc_cd your-cd
   * conf set mqtt_endpoint your-endpoint
   * conf set mqtt_port 8883
+* Enter the following commands to set up the WiFi connection for your device: 
+  * conf set wifi_ssid your-wifi-ssid 
+  * conf set wifi_credential your-wifi-password
 * Verify values by typing  **conf get** and examining the output.
 * Type **conf commit**. Note that must commit the changes so that they take effect.
 * Type **reset** to reset the device.
 
+## Starfield Root CA G2
+
+```pem
+-----BEGIN CERTIFICATE-----
+MIID7zCCAtegAwIBAgIBADANBgkqhkiG9w0BAQsFADCBmDELMAkGA1UEBhMCVVMx
+EDAOBgNVBAgTB0FyaXpvbmExEzARBgNVBAcTClNjb3R0c2RhbGUxJTAjBgNVBAoT
+HFN0YXJmaWVsZCBUZWNobm9sb2dpZXMsIEluYy4xOzA5BgNVBAMTMlN0YXJmaWVs
+ZCBTZXJ2aWNlcyBSb290IENlcnRpZmljYXRlIEF1dGhvcml0eSAtIEcyMB4XDTA5
+MDkwMTAwMDAwMFoXDTM3MTIzMTIzNTk1OVowgZgxCzAJBgNVBAYTAlVTMRAwDgYD
+VQQIEwdBcml6b25hMRMwEQYDVQQHEwpTY290dHNkYWxlMSUwIwYDVQQKExxTdGFy
+ZmllbGQgVGVjaG5vbG9naWVzLCBJbmMuMTswOQYDVQQDEzJTdGFyZmllbGQgU2Vy
+dmljZXMgUm9vdCBDZXJ0aWZpY2F0ZSBBdXRob3JpdHkgLSBHMjCCASIwDQYJKoZI
+hvcNAQEBBQADggEPADCCAQoCggEBANUMOsQq+U7i9b4Zl1+OiFOxHz/Lz58gE20p
+OsgPfTz3a3Y4Y9k2YKibXlwAgLIvWX/2h/klQ4bnaRtSmpDhcePYLQ1Ob/bISdm2
+8xpWriu2dBTrz/sm4xq6HZYuajtYlIlHVv8loJNwU4PahHQUw2eeBGg6345AWh1K
+Ts9DkTvnVtYAcMtS7nt9rjrnvDH5RfbCYM8TWQIrgMw0R9+53pBlbQLPLJGmpufe
+hRhJfGZOozptqbXuNC66DQO4M99H67FrjSXZm86B0UVGMpZwh94CDklDhbZsc7tk
+6mFBrMnUVN+HL8cisibMn1lUaJ/8viovxFUcdUBgF4UCVTmLfwUCAwEAAaNCMEAw
+DwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYwHQYDVR0OBBYEFJxfAN+q
+AdcwKziIorhtSpzyEZGDMA0GCSqGSIb3DQEBCwUAA4IBAQBLNqaEd2ndOxmfZyMI
+bw5hyf2E3F/YNoHN2BtBLZ9g3ccaaNnRbobhiCPPE95Dz+I0swSdHynVv/heyNXB
+ve6SbzJ08pGCL72CQnqtKrcgfU28elUSwhXqvfdqlS5sdJ/PHLTyxQGjhdByPq1z
+qwubdQxtRbeOlKyWN7Wg0I8VRw7j6IPdj/3vQQF3zCepYoUz8jcI73HPdwbeyBkd
+iEDPfUYd/x7H4c7/I9vG+o1VTqkC50cRRj70/b17KSa7qWFiNyi2LSr2EIZkyXCn
+0q23KXB56jzaYyWf/Wi3MOxw+3WKt21gZ7IeyLnp2KhvAotnDU0mV3HaIPzBSlCN
+sSi6
+-----END CERTIFICATE-----
+```
