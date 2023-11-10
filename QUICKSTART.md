@@ -3,7 +3,7 @@
 
 ## Firmware Flashing
 * Download and install a serial console application (TeraTerm for example) and STM32CubeProgrammer
-* Download and extract [b_u585i_iot02a_ntz_v1_0.zip](https://saleshosted.z13.web.core.windows.net/demo/st/b_u585i_iot02a_ntz_v1_0.zip)
+* Download and extract [b_u585i_iot02a_ntz_v1_1.zip](https://saleshosted.z13.web.core.windows.net/demo/st/b_u585i_iot02a_ntz_v1_1.zip)
 * Connect the board with a Micro USB to a PC cable located on the top of the board.
 Do not connect the USB-C port or the micro USB port at the bottom.  
 * Open the STM32CubeProgrammer and connect it to the board by clicking the *Connect* button on the top right.

@@ -6,7 +6,7 @@ this_dir=$(dirname "${0}")
 
 cd ${this_dir}/..
 
-mlpath=./models/ml-source-fsd50k
+mlpath=./models/ml-source-fsd50k-alerts
 
 if [[ -n "${1}" ]]; then
   mlpath="${1}"

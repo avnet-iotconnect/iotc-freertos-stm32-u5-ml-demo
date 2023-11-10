@@ -1,0 +1,8 @@
+/*/.hydra
+/*/stm32ai_files/*
+
+!/LICENSE.pdf
+!/*/stm32ai_files/Inc
+!/*/stm32ai_files/Lib
+!/*/stm32ai_files/network*.c
+!/*/stm32ai_files/network*.h
