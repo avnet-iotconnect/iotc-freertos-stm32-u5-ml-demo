@@ -54,10 +54,10 @@ where you saved the generated certificate in the steps above.
 click the *Connection Info* hyperlink on the top the right.
 * Note the following values in the device *Connection info* screen 
 which we will use for the device runtime configuration in the next steps:
-  * Your Unique Device ID that you used to create the device will be used as *thing_name*.
-  * Host, which will be used for the *mqtt_endpoint* value.
+  * *Your Unique Device ID* that you used to create the device will be used as *thing_name*.
+  * *Host*, which will be used for the *mqtt_endpoint* value.
   * Reporting topic will be in a format: $aws/rules/msg_d2c_rpt/yourdevice/ABCDEFG/2.1/0.
-Note the capital letter string CD value like "XG2Y2M1" which we will use as *iotc_cd* value in the 
+Note the capital letter string *CD* value like "XG2Y2M1" which we will use as *iotc_cd* value in the 
 [Configuring Device Connection Parameters](#Configuring-Device-Connection-Parameters) steps below.
 
 ## Configuring Device Connection Parameters
