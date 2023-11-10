@@ -15,6 +15,18 @@ This project is a reduced version of the original project that is focusing on bu
 locally with pre-generated AI model files. The pre-generated model files are 
 subject to the [ST SLA0044](models/LICENSE.pdf) license.
 
+The sounds recognized by this version are:
+Speech, Crying_and_sobbing, Glass, Gunshot_and_gunfire, Knock.
+
+Telemetry also has a **confidence** report number value along with **class**.  
+The confidence number is a percentage ranging from 0 to 100.
+In reality, numbers lower than 30 or so will not be reported,
+as it is more likely that the model will be more confident 
+in the "other" detection.
+Telemetry will be reported only when there are sounds.
+If class="other" is reported it means that it detected a sound, 
+but nothing is recognized.
+
 # Instructions
 
 * If you wish to try the project out on your board, see the [Quickstart Guide](QUICKSTART.md).
