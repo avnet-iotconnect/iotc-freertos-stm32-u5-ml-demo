@@ -52,7 +52,6 @@ END CERTIFICATE lines and paste it into a file that we will upload during IoTCon
 where you saved the generated certificate in the steps above.
 * When complete, navigate to the device Info tab (should come up by default) and 
 click the *Connection Info* hyperlink on the top the right.
-* Download and extract the device certificate by clicking the golden colored certificate icon on the top right.
 * Note the following values in the device *Connection info* screen 
 which we will use for the device runtime configuration in the next steps:
   * Your Unique Device ID that you used to create the device will be used as *thing_name*.
