@@ -23,6 +23,7 @@
  * https://github.com/FreeRTOS
  *
  */
+#include <time.h>
 
 #include "logging_levels.h"
 /* define LOG_LEVEL here if you want to modify the logging level from the default */
@@ -312,6 +313,20 @@ void vMicSensorPublishTask(void *pvParameters)
 
 		// xExitFlag = pdTRUE;
 	}
+	const char * inactive_position = "0.0,0.0";
+	const char * device_position = "41.8774330,-87.6389937"; // Avnet Chicago
+	if (0 == strcmp("ml-ai-demo-01", pcDeviceId)) {
+	    device_position = "36.0861112,-115.1786765"; // NE Frank Sinatra Dr and W Russell Rd
+	} else if (0 == strcmp("ml-ai-demo-01", pcDeviceId)) {
+	    device_position = "36.0861112,-115.1786765"; // NW Las Vegas Blvd and W Russell Rd
+	} else if (0 == strcmp("ml-ai-demo-02", pcDeviceId)) {
+	    device_position = "36.0863886,-115.1732692"; // NE Las Vegas Blvd and Four Seasons Dr
+	} else if (0 == strcmp("ml-ai-demo-01", pcDeviceId)) {
+	    device_position = "36.0934706,-115.1731671"; // SW Las Vegas Blvd and Mandalay Bay Rd
+	} else if (0 == strcmp("ml-ai-demo-01", pcDeviceId)) {
+	    device_position = "36.0933494,-115.1814609"; // SW W Hacienda Ave and Dean Martin Dr.
+	}
+
 	vSleepUntilMQTTAgentReady();
 
 	xAgentHandle = xGetMqttAgentHandle();
@@ -322,13 +337,14 @@ void vMicSensorPublishTask(void *pvParameters)
 		LogError("AUDIO IN : FAILED.\n");
 	}
 
+	TickType_t last_detection = pdMS_TO_TICKS(xTaskGetTickCount());
+
 	while (xExitFlag == pdFALSE)
 	{
 		TimeOut_t xTimeOut;
 		vTaskSetTimeOutState(&xTimeOut);
 
-		if (xTaskNotifyWait(0, 0xFFFFFFFF, &ulNotifiedValue, portMAX_DELAY) == pdTRUE)
-		{
+		if (xTaskNotifyWait(0, 0xFFFFFFFF, &ulNotifiedValue, portMAX_DELAY) == pdTRUE) {
 			/**
 			 * Audio pre-processing on audio half buffer
 			 */
@@ -342,16 +358,13 @@ void vMicSensorPublishTask(void *pvParameters)
 			 */
 			AiDPUProcess(&xAIProcCtx, pcSpectroGram, pfAIOutput);
 		}
-		size_t bytesWritten = 0;
-		if (xAudioProcCtx.S_Spectr.spectro_sum > CTRL_X_CUBE_AI_SPECTROGRAM_SILENCE_THR)
-		{
+		if (xAudioProcCtx.S_Spectr.spectro_sum > CTRL_X_CUBE_AI_SPECTROGRAM_SILENCE_THR) {
 			/**
 			 * if not silence frame
 			 */
 			float max_out = pfAIOutput[0];
 			uint32_t max_idx = 0;
-			for (uint32_t i = 1; i < CTRL_X_CUBE_AI_MODE_CLASS_NUMBER; i++)
-			{
+			for (uint32_t i = 1; i < CTRL_X_CUBE_AI_MODE_CLASS_NUMBER; i++) {
 				if (pfAIOutput[i] > max_out)
 				{
 					max_idx = i;
@@ -360,37 +373,72 @@ void vMicSensorPublishTask(void *pvParameters)
 			}
 			/* Write to */
 			int confidence_score_percent = (int)(100.0 * max_out);
-			bytesWritten = (size_t) snprintf(payloadBuf, (size_t)MQTT_PUBLISH_MAX_LEN,
-					"{\"d\":[{\"d\":{\"version\":\"MLDEMO-1.1\",\"class\":\"%s\",\"confidence\":\"%d\"}}],\"mt\":0,\"cd\":\"%s\"}",
+
+			if (0 != strcmp("other", sAiClassLabels[max_idx])) {
+				last_detection = pdMS_TO_TICKS(xTaskGetTickCount());
+			}
+
+			size_t bytesWritten = (size_t) snprintf(payloadBuf, (size_t)MQTT_PUBLISH_MAX_LEN,
+					"{\"d\":"\
+					"[{\"d\":{\"version\":\"MLDEMO-1.2\",\"class\":\"%s\",\"confidence\":%d,\"position\":[%s],\"positionstr\":\"%s\"}}]"\
+					",\"mt\":0,\"cd\":\"%s\"}",
 					sAiClassLabels[max_idx],
 					confidence_score_percent,
+					device_position,
+					device_position,
 					pcIotcCd
 			);
 
-			if (xIsMqttConnected() == pdTRUE)
-			{
-				if (bytesWritten < MQTT_PUBLISH_MAX_LEN)
-				{
+			if (xIsMqttConnected() == pdTRUE) {
+                if (bytesWritten < MQTT_PUBLISH_MAX_LEN) {
+                    xResult = prvPublishAndWaitForAck(xAgentHandle,
+                                                      pcTopicString,
+                                                      payloadBuf,
+                                                      bytesWritten
+                    );
+                } else if (bytesWritten > 0) {
+                    LogError("Not enough buffer space.");
+                } else {
+                    LogError("MQTT Publish call failed.");
+                }
+
+                if (xResult == pdTRUE) {
+                    LogDebug(payloadBuf);
+                }
+            }
+		}
+		if ((pdMS_TO_TICKS(xTaskGetTickCount()) - last_detection) > 5000) {
+            last_detection = pdMS_TO_TICKS(xTaskGetTickCount()); // back off for reset for another 5 seconds
+			size_t bytesWritten = (size_t) snprintf(payloadBuf, (size_t)MQTT_PUBLISH_MAX_LEN,
+					"{\"d\":"\
+					"[{\"d\":{\"version\":\"MLDEMO-1.2\",\"class\":\"%s\",\"confidence\":%d,\"position\":[%s],\"positionstr\":\"%s\"}}]"
+					",\"mt\":0,\"cd\":\"%s\"}",
+					"inactive",
+					100,
+					inactive_position,
+					inactive_position,
+					pcIotcCd
+			);
+
+			if (xIsMqttConnected() == pdTRUE) {
+				if (bytesWritten < MQTT_PUBLISH_MAX_LEN) {
 					xResult = prvPublishAndWaitForAck(xAgentHandle,
 													  pcTopicString,
 													  payloadBuf,
-													  bytesWritten);
-				}
-				else if (bytesWritten > 0)
-				{
+													  bytesWritten
+					);
+				} else if (bytesWritten > 0) {
 					LogError("Not enough buffer space.");
-				}
-				else
-				{
+				} else {
 					LogError("MQTT Publish call failed.");
 				}
 
-				if (xResult == pdTRUE)
-				{
+				if (xResult == pdTRUE) {
 					LogDebug(payloadBuf);
 				}
 			}
 		}
+
 		xAudioProcCtx.S_Spectr.spectro_sum = 0;
 	}
 }
