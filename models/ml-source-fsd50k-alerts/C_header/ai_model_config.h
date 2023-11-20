@@ -2,7 +2,7 @@
 * @file    ai_model_config.h
 * @author  STMicroelectronics - AIS - MCD Team
 * @version 1.0.0
-* @date    2023-Nov-09
+* @date    2023-Nov-18
 * @brief   Configure the getting started functionality
 *
 *  Each logic module of the application should define a DEBUG control byte

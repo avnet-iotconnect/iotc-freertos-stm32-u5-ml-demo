@@ -2,7 +2,7 @@
   ******************************************************************************
   * @file    network.c
   * @author  AST Embedded Analytics Research Platform
-  * @date    Thu Nov  9 17:08:58 2023
+  * @date    Sat Nov 18 00:36:41 2023
   * @brief   AI Tool Automatic Code Generator for Embedded NN computing
   ******************************************************************************
   * @attention
@@ -35,14 +35,14 @@
 #define AI_NET_OBJ_INSTANCE g_network
  
 #undef AI_NETWORK_MODEL_SIGNATURE
-#define AI_NETWORK_MODEL_SIGNATURE     "9361df3ae8d313542f66aa693ecbbe46"
+#define AI_NETWORK_MODEL_SIGNATURE     "ec6b85b13eed189c5764227db37c611b"
 
 #ifndef AI_TOOLS_REVISION_ID
 #define AI_TOOLS_REVISION_ID     ""
 #endif
 
 #undef AI_TOOLS_DATE_TIME
-#define AI_TOOLS_DATE_TIME   "Thu Nov  9 17:08:58 2023"
+#define AI_TOOLS_DATE_TIME   "Sat Nov 18 00:36:41 2023"
 
 #undef AI_TOOLS_COMPILE_TIME
 #define AI_TOOLS_COMPILE_TIME    __DATE__ " " __TIME__
@@ -447,7 +447,7 @@ AI_INTQ_INFO_LIST_OBJ_DECLARE(conv2d_8_pad_before_output_array_intq, AI_STATIC_C
 AI_INTQ_INFO_LIST_OBJ_DECLARE(dense_13_weights_array_intq, AI_STATIC_CONST,
   AI_BUFFER_META_FLAG_SCALE_FLOAT|AI_BUFFER_META_FLAG_ZEROPOINT_S8, 1,
   AI_PACK_INTQ_INFO(
-    AI_PACK_INTQ_SCALE(0.015422778204083443f),
+    AI_PACK_INTQ_SCALE(0.015549530275166035f),
     AI_PACK_INTQ_ZP(0)))
 
 /* Int quant #23 */
@@ -496,8 +496,8 @@ AI_INTQ_INFO_LIST_OBJ_DECLARE(pool_12_output_array_intq, AI_STATIC_CONST,
 AI_INTQ_INFO_LIST_OBJ_DECLARE(dense_13_output_array_intq, AI_STATIC_CONST,
   AI_BUFFER_META_FLAG_SCALE_FLOAT|AI_BUFFER_META_FLAG_ZEROPOINT_S8, 1,
   AI_PACK_INTQ_INFO(
-    AI_PACK_INTQ_SCALE(0.1974264681339264f),
-    AI_PACK_INTQ_ZP(77)))
+    AI_PACK_INTQ_SCALE(0.2039155215024948f),
+    AI_PACK_INTQ_ZP(83)))
 
 /* Int quant #30 */
 AI_INTQ_INFO_LIST_OBJ_DECLARE(conv2d_1_weights_array_intq, AI_STATIC_CONST,
