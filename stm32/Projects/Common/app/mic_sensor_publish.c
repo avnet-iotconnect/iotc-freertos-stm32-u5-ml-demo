@@ -46,6 +46,8 @@
 /* MQTT library includes. */
 #include "core_mqtt.h"
 #include "core_mqtt_agent.h"
+#include "subscription_manager.h"
+#include "mqtt_agent_task.h"
 #include "sys_evt.h"
 
 /* Subscription manager header include. */
@@ -104,6 +106,8 @@ static AIProcCtx_t xAIProcCtx;
  * Microphone task handle
  */
 static TaskHandle_t xMicTask;
+
+static int confidence_threshold = 40;
 
 /*-----------------------------------------------------------*/
 static void prvPublishCommandCallback(MQTTAgentCommandContext_t *pxCommandContext,
@@ -241,6 +245,66 @@ static BaseType_t xInitSensors(void)
 	return (lBspError == BSP_ERROR_NONE ? pdTRUE : pdFALSE);
 }
 
+static void on_c2d_message( void * subscription_context, MQTTPublishInfo_t * publish_info ) {
+    (void) subscription_context;
+
+    const char* THRESHOLD_CMD = "set-confidence-threshold ";
+    if (!publish_info) {
+        LogError("on_c2d_message: Publish info is NULL?");
+        return;
+    }
+    LogInfo("<<< %.*s", publish_info->payloadLength, publish_info->pPayload);
+
+    char* payload = (char *)publish_info->pPayload;
+    // terminate the string just in case.
+    // Don't really care about the last char for now so we can overwrite it with null and truncate the value
+    payload[publish_info->payloadLength] = 0;
+
+    // we should get something like {"v":"2.1","ct":0,"cmd":"set-confidence-threshold 22"}
+    const char* command_pos = strstr(payload, THRESHOLD_CMD);
+    if (!command_pos) {
+    	LogInfo("Got an unknown command or OTA. Skipping.");
+    	return;
+    }
+    payload = &payload[strlen(THRESHOLD_CMD)+1];
+    int threshold = -1;
+    scanf(payload, "%d", threshold);
+    if (threshold > -1) {
+    	confidence_threshold = threshold;
+    	LogError("New confidence threshold: %d", threshold);
+    } else {
+    	LogError("Failed to parse threshold value");
+    }
+}
+
+static bool subscribe_to_c2d_topic(const char * device_id)
+{
+    char sub_topic[strlen(device_id) + 20];
+    sprintf(sub_topic, "iot/%s/cmd", device_id);
+
+    MQTTAgentHandle_t agent_handle = xGetMqttAgentHandle();
+    if (agent_handle == NULL )  {
+	    LogError("Unable to get agent handle");
+	    return false;
+    }
+
+    MQTTStatus_t mqtt_status = MqttAgent_SubscribeSync( agent_handle,
+		sub_topic,
+		1 /* qos */,
+		on_c2d_message,
+		NULL
+    );
+    if (MQTTSuccess != mqtt_status) {
+        LogError("Failed to SUBSCRIBE to topic with error = %u.", mqtt_status);
+        return false;
+    }
+
+    LogInfo("Subscribed to topic %s.\n\n", sub_topic);
+
+    return true;
+}
+
+
 void vMicSensorPublishTask(void *pvParameters)
 {
 	BaseType_t xResult = pdFALSE;
@@ -290,8 +354,8 @@ void vMicSensorPublishTask(void *pvParameters)
 	xAudioProcCtx.output_Q_offset = xAIProcCtx.input_Q_offset;
 	xAudioProcCtx.output_Q_inv_scale = xAIProcCtx.input_Q_inv_scale;
 
-    char pcDeviceId[MQTT_PUBLICH_TOPIC_STR_LEN];
-    size_t uxDevNameLen = KVStore_getString(CS_CORE_THING_NAME, pcDeviceId, MQTT_PUBLICH_TOPIC_STR_LEN);
+    char pcDeviceId[64];
+    size_t uxDevNameLen = KVStore_getString(CS_CORE_THING_NAME, pcDeviceId, 64);
     char pcIotcCd[IOTC_CD_MAX_LEN]; // IoTConnect CD value
     size_t uxCidLen = KVStore_getString(CS_IOTC_CD, pcIotcCd, IOTC_CD_MAX_LEN);
 
@@ -327,7 +391,10 @@ void vMicSensorPublishTask(void *pvParameters)
 	    device_position = "36.0933494,-115.1814609"; // SW W Hacienda Ave and Dean Martin Dr.
 	}
 
+	subscribe_to_c2d_topic(pcDeviceId);
+
 	vSleepUntilMQTTAgentReady();
+
 
 	xAgentHandle = xGetMqttAgentHandle();
 
@@ -374,38 +441,50 @@ void vMicSensorPublishTask(void *pvParameters)
 			/* Write to */
 			int confidence_score_percent = (int)(100.0 * max_out);
 
+
 			if (0 != strcmp("other", sAiClassLabels[max_idx])) {
-				last_detection = pdMS_TO_TICKS(xTaskGetTickCount());
+				if (confidence_score_percent >= confidence_threshold) {
+					last_detection = pdMS_TO_TICKS(xTaskGetTickCount());
+				}
 			}
 
-			size_t bytesWritten = (size_t) snprintf(payloadBuf, (size_t)MQTT_PUBLISH_MAX_LEN,
-					"{\"d\":"\
-					"[{\"d\":{\"version\":\"MLDEMO-1.2\",\"class\":\"%s\",\"confidence\":%d,\"position\":[%s],\"positionstr\":\"%s\"}}]"\
-					",\"mt\":0,\"cd\":\"%s\"}",
-					sAiClassLabels[max_idx],
-					confidence_score_percent,
-					device_position,
-					device_position,
-					pcIotcCd
-			);
+			if (confidence_score_percent < confidence_threshold) {
+				LogInfo("Confidence is low for %s (%d<%d). Ignoring...",
+						sAiClassLabels[max_idx],
+						confidence_score_percent,
+						confidence_threshold
+						);
+			} else {
+				size_t bytesWritten = (size_t) snprintf(payloadBuf, (size_t)MQTT_PUBLISH_MAX_LEN,
+						"{\"d\":"\
+						"[{\"d\":{\"version\":\"MLDEMO-1.2\",\"class\":\"%s\",\"confidence\":%d,\"position\":[%s],\"positionstr\":\"%s\"}}]"\
+						",\"mt\":0,\"cd\":\"%s\"}",
+						sAiClassLabels[max_idx],
+						confidence_score_percent,
+						device_position,
+						device_position,
+						pcIotcCd
+				);
 
-			if (xIsMqttConnected() == pdTRUE) {
-                if (bytesWritten < MQTT_PUBLISH_MAX_LEN) {
-                    xResult = prvPublishAndWaitForAck(xAgentHandle,
-                                                      pcTopicString,
-                                                      payloadBuf,
-                                                      bytesWritten
-                    );
-                } else if (bytesWritten > 0) {
-                    LogError("Not enough buffer space.");
-                } else {
-                    LogError("MQTT Publish call failed.");
-                }
+				if (xIsMqttConnected() == pdTRUE) {
+	                if (bytesWritten < MQTT_PUBLISH_MAX_LEN) {
+	                    xResult = prvPublishAndWaitForAck(xAgentHandle,
+	                                                      pcTopicString,
+	                                                      payloadBuf,
+	                                                      bytesWritten
+	                    );
+	                } else if (bytesWritten > 0) {
+	                    LogError("Not enough buffer space.");
+	                } else {
+	                    LogError("MQTT Publish call failed.");
+	                }
 
-                if (xResult == pdTRUE) {
-                    LogDebug(payloadBuf);
-                }
-            }
+	                if (xResult == pdTRUE) {
+	                    LogDebug(payloadBuf);
+	                }
+	            }
+			}
+
 		}
 		if ((pdMS_TO_TICKS(xTaskGetTickCount()) - last_detection) > 5000) {
             last_detection = pdMS_TO_TICKS(xTaskGetTickCount()); // back off for reset for another 5 seconds
@@ -413,7 +492,7 @@ void vMicSensorPublishTask(void *pvParameters)
 					"{\"d\":"\
 					"[{\"d\":{\"version\":\"MLDEMO-1.2\",\"class\":\"%s\",\"confidence\":%d,\"position\":[%s],\"positionstr\":\"%s\"}}]"
 					",\"mt\":0,\"cd\":\"%s\"}",
-					"inactive",
+					"not-active",
 					100,
 					inactive_position,
 					inactive_position,
