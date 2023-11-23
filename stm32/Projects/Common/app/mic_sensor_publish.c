@@ -112,6 +112,7 @@ static TaskHandle_t xMicTask;
 static TickType_t last_detection_time;
 static int confidence_threshold = 40;
 static int inactivity_timeout = 5000;
+static int confidence_offsets[AI_NETWORK_OUT_1_SIZE] = {0};
 
 /*-----------------------------------------------------------*/
 static void prvPublishCommandCallback(MQTTAgentCommandContext_t *pxCommandContext,
@@ -249,6 +250,49 @@ static BaseType_t xInitSensors(void)
 	return (lBspError == BSP_ERROR_NONE ? pdTRUE : pdFALSE);
 }
 
+static bool scan_command_number_array_arg(const char* payload, const char* command, int *value_array, size_t num_values) {
+    // we should get something like {"v":"2.1","ct":0,"cmd":"set-confidence-threshold 22"}
+    const char* command_pos = strstr(payload, command);
+
+    if (!command_pos) {
+        return false;
+    }
+
+    if (0 == num_values) {
+        return false;
+    }
+
+    const char * value_pos = &command_pos[strlen(command)];
+    size_t value_idx = 0;
+    do {
+        int num_found = sscanf(value_pos, "%d", &value_array[value_idx]);
+        if (num_found != 1) {
+        	return false;
+        }
+        value_idx++;
+    	value_pos = strstr(value_pos, " ");
+    	if (NULL == value_pos) {
+    		break;
+    	}
+    	value_pos++; // move the the "end" of space
+    } while(NULL != value_pos && value_idx < num_values);
+
+    if (value_idx < num_values) {
+    	return false;
+    }
+    return true;
+}
+
+static void apply_class_offset(const char* name, int offset) {
+	for (int i = 0; i < AI_NETWORK_OUT_1_SIZE; i++) {
+    	if (0 == strcmp(name, sAiClassLabels[i])) {
+    		LogInfo("Applying offset %d to %s", offset, sAiClassLabels[i]);
+    		confidence_offsets[i] = offset;
+    		return;
+    	}
+	}
+}
+
 static bool scan_command_number_arg(const char* payload, const char* command, int *value) {
     // we should get something like {"v":"2.1","ct":0,"cmd":"set-confidence-threshold 22"}
     const char* command_pos = strstr(payload, command);
@@ -263,6 +307,7 @@ static bool scan_command_number_arg(const char* payload, const char* command, in
 static void on_c2d_message( void * subscription_context, MQTTPublishInfo_t * publish_info ) {
     (void) subscription_context;
 
+    const char* OFFSETS_CMD = "set-confidence-offsets ";
     const char* THRESHOLD_CMD = "set-confidence-threshold ";
     const char* INACTIVITY_TIMEOUT_CMD = "set-inactivity-timeout ";
     if (!publish_info) {
@@ -276,12 +321,29 @@ static void on_c2d_message( void * subscription_context, MQTTPublishInfo_t * pub
     // Don't really care about the last char for now so we can overwrite it with null and truncate the value
     payload[publish_info->payloadLength] = 0;
 
-    if (scan_command_number_arg(payload, THRESHOLD_CMD, &confidence_threshold)) {
-    	LogError("New confidence threshold: %d", confidence_threshold);
-    } else if (scan_command_number_arg(payload, INACTIVITY_TIMEOUT_CMD, &inactivity_timeout)) {
-    	LogError("New inactivity timeout: %d", inactivity_timeout);
+    if (NULL != strstr(payload, OFFSETS_CMD)) {
+    	if (scan_command_number_array_arg(payload, OFFSETS_CMD, confidence_offsets, AI_NETWORK_OUT_1_SIZE)) {
+        	LogInfo("New offsets set:");
+        	for (int i = 0; i < AI_NETWORK_OUT_1_SIZE; i++) {
+            	LogInfo("%s: %d", sAiClassLabels[i], confidence_offsets[i]);
+        	}
+    	} else {
+    		LogError("Failed %s!", OFFSETS_CMD);
+    	}
+    } else if (NULL != strstr(payload, THRESHOLD_CMD)) {
+    	if (scan_command_number_arg(payload, THRESHOLD_CMD, &confidence_threshold)) {
+        	LogInfo("New confidence threshold: %d", confidence_threshold);
+    	} else {
+    		LogError("Failed %s!", THRESHOLD_CMD);
+    	}
+    } else if (NULL != strstr(payload, INACTIVITY_TIMEOUT_CMD)) {
+    	if (scan_command_number_arg(payload, INACTIVITY_TIMEOUT_CMD, &confidence_threshold)) {
+        	LogInfo("New inactivity timeout: %d", inactivity_timeout);
+    	} else {
+    		LogError("Failed %s!", INACTIVITY_TIMEOUT_CMD);
+    	}
     } else {
-    	LogError("Failed to parse the command value");
+    	LogError("Unknown command!");
     }
 }
 
@@ -435,9 +497,14 @@ void vMicSensorPublishTask(void *pvParameters)
 	set_detected_never();
 	bool idle_needs_sending = true;
 
+
+	apply_class_offset("Thunder", -15);
+	apply_class_offset("Bark", -15);
+	apply_class_offset("Liquid", -10);
+
 	LogInfo("**** DEMO SOUNDS v%s ****", APP_VERSION);
 	for (uint32_t clidx = 0; clidx < CTRL_X_CUBE_AI_MODE_CLASS_NUMBER; clidx++) {
-		LogInfo("**** %s", sAiClassLabels[clidx]);
+		LogInfo("**** %s [%d]", sAiClassLabels[clidx], confidence_offsets[clidx]);
 	}
 	LogInfo("********");
 
@@ -475,31 +542,45 @@ void vMicSensorPublishTask(void *pvParameters)
 				 * if not silence frame
 				 */
 				uint32_t max_idx = 0; // assume best is at index 0 and disprove
-				float max_out = pfAIOutput[0];
+				float max_out = pfAIOutput[0] + ((float32_t)confidence_offsets[0]) / 100.0F;
 				for (uint32_t i = 1; i < CTRL_X_CUBE_AI_MODE_CLASS_NUMBER; i++) {
-					if (pfAIOutput[i] > max_out) {
+					float32_t class_out = pfAIOutput[i]  + ((float32_t)confidence_offsets[i] / 100.0F);
+					if (class_out > max_out) {
 						max_idx = i;
-						max_out = pfAIOutput[i];
+						max_out = class_out;
 					}
 				}
 				const char* c = sAiClassLabels[max_idx];
 
 				confidence_score_percent = (int)(100.0 * max_out);
+				if (confidence_score_percent > 100) {
+					confidence_score_percent = 100;
+				} else if (confidence_score_percent < 0) {
+					confidence_score_percent = 0;
+				}
 
 				if (0 == strcmp("other", c)) {
-					LogInfo("Detected \"other\" with score %d. Ignoring...", confidence_score_percent);
+					LogInfo("Detected \"other\" with score %s%d. Ignoring...",
+							((confidence_score_percent < confidence_threshold) ? " " : "*"),
+							confidence_score_percent
+					);
 					break;
 				}
 
-				if (is_detection_blocked()) {
-					LogInfo("Blocking %s with score %d...", c, confidence_score_percent);
-					break;
-				}
 				if (confidence_score_percent < confidence_threshold) {
 					LogInfo("Confidence is low for %s (%d<%d). Ignoring...",
 							c,
 							confidence_score_percent,
 							confidence_threshold
+					);
+					break;
+				}
+
+				if (is_detection_blocked()) {
+					LogInfo("Blocking %s with score %s%d...",
+							c,
+							((confidence_score_percent < confidence_threshold) ? " " : "*"),
+							confidence_score_percent
 					);
 					break;
 				}
