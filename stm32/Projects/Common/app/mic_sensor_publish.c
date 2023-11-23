@@ -462,9 +462,9 @@ void vMicSensorPublishTask(void *pvParameters)
 	if (0 == strcmp("ml-ai-demo-01", pcDeviceId)) {
 	    device_position = "36.0861112,-115.1786765"; // NE Frank Sinatra Dr and W Russell Rd
 	} else if (0 == strcmp("ml-ai-demo-02", pcDeviceId)) {
-	    device_position = "36.0861112,-115.1786765"; // NW Las Vegas Blvd and W Russell Rd
+	    device_position = "36.0863886,-115.1732692"; // NW Las Vegas Blvd and W Russell Rd
 	} else if (0 == strcmp("ml-ai-demo-03", pcDeviceId)) {
-	    device_position = "36.0863886,-115.1732692"; // NE Las Vegas Blvd and Four Seasons Dr
+	    device_position = "36.0898220,-115.1726040"; // NE Las Vegas Blvd and Four Seasons Dr
 	} else if (0 == strcmp("ml-ai-demo-04", pcDeviceId)) {
 	    device_position = "36.0934706,-115.1731671"; // SW Las Vegas Blvd and Mandalay Bay Rd
 	} else if (0 == strcmp("ml-ai-demo-05", pcDeviceId)) {
@@ -472,9 +472,9 @@ void vMicSensorPublishTask(void *pvParameters)
 	} else if (0 == strcmp("ml-ai-demo-06", pcDeviceId)) {
 	    device_position = "36.0861112,-115.1786765"; // NE Frank Sinatra Dr and W Russell Rd
 	} else if (0 == strcmp("ml-ai-demo-07", pcDeviceId)) {
-	    device_position = "36.0861112,-115.1786765"; // NW Las Vegas Blvd and W Russell Rd
+	    device_position = "36.0863886,-115.1732692"; // NW Las Vegas Blvd and W Russell Rd
 	} else if (0 == strcmp("ml-ai-demo-08", pcDeviceId)) {
-	    device_position = "36.0863886,-115.1732692"; // NE Las Vegas Blvd and Four Seasons Dr
+	    device_position = "36.0898220,-115.1726040"; // NE Las Vegas Blvd and Four Seasons Dr
 	} else if (0 == strcmp("ml-ai-demo-09", pcDeviceId)) {
 	    device_position = "36.0934706,-115.1731671"; // SW Las Vegas Blvd and Mandalay Bay Rd
 	} else if (0 == strcmp("ml-ai-demo-10", pcDeviceId)) {
