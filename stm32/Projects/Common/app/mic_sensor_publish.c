@@ -78,7 +78,7 @@ extern UBaseType_t uxRand(void);
 #define MIC_EVT_DMA_HALF (1 << 0)
 #define MIC_EVT_DMA_CPLT (1 << 1)
 
-#define APP_VERSION "1.2"
+#define APP_VERSION "1.2.2"
 
 /**
  * @brief Defines the structure to use as the command callback context in this
@@ -110,9 +110,9 @@ static AIProcCtx_t xAIProcCtx;
 static TaskHandle_t xMicTask;
 
 static TickType_t last_detection_time;
-static int confidence_threshold = 40;
+static int confidence_threshold = 42;
 static int inactivity_timeout = 5000;
-static int confidence_offsets[AI_NETWORK_OUT_1_SIZE] = {0};
+static int confidence_offsets[AI_NETWORK_OUT_1_SIZE] = {0, -49, -19, 39, 27, -25};
 
 /*-----------------------------------------------------------*/
 static void prvPublishCommandCallback(MQTTAgentCommandContext_t *pxCommandContext,
@@ -457,7 +457,7 @@ void vMicSensorPublishTask(void *pvParameters)
 
 		// xExitFlag = pdTRUE;
 	}
-	const char * inactive_position = "133.2751544 -26.8533875";
+	const char * inactive_position = "36.2409530, -115.0633452";
 	const char * device_position = "41.8774330,-87.6389937"; // Avnet Chicago
 	if (0 == strcmp("ml-ai-demo-01", pcDeviceId)) {
 	    device_position = "36.0861112,-115.1786765"; // NE Frank Sinatra Dr and W Russell Rd
@@ -497,10 +497,6 @@ void vMicSensorPublishTask(void *pvParameters)
 	set_detected_never();
 	bool idle_needs_sending = true;
 
-
-	apply_class_offset("Thunder", -15);
-	apply_class_offset("Bark", -15);
-	apply_class_offset("Liquid", -10);
 
 	LogInfo("**** DEMO SOUNDS v%s ****", APP_VERSION);
 	for (uint32_t clidx = 0; clidx < CTRL_X_CUBE_AI_MODE_CLASS_NUMBER; clidx++) {
@@ -596,7 +592,7 @@ void vMicSensorPublishTask(void *pvParameters)
 			idle_needs_sending = true;
 			bytesWritten = (size_t) snprintf(payloadBuf, (size_t)MQTT_PUBLISH_MAX_LEN,
 					"{\"d\":"\
-					"[{\"d\":{\"version\":\"MLDEMO-1.2\",\"class\":\"%s\",\"confidence\":%d,\"position\":[%s]}}]"\
+					"[{\"d\":{\"version\":\"MLDEMO-" APP_VERSION "\",\"class\":\"%s\",\"confidence\":%d,\"position\":[%s]}}]"\
 					",\"mt\":0,\"cd\":\"%s\"}",
 					detected_class,
 					confidence_score_percent,
@@ -607,7 +603,7 @@ void vMicSensorPublishTask(void *pvParameters)
 			idle_needs_sending = false;
 			bytesWritten = (size_t) snprintf(payloadBuf, (size_t)MQTT_PUBLISH_MAX_LEN,
 					"{\"d\":"\
-					"[{\"d\":{\"version\":\"MLDEMO-1.2\",\"class\":\"%s\",\"confidence\":%d,\"position\":[%s]}}]"\
+					"[{\"d\":{\"version\":\"MLDEMO-" APP_VERSION "\",\"class\":\"%s\",\"confidence\":%d,\"position\":[%s]}}]"\
 					",\"mt\":0,\"cd\":\"%s\"}",
 					"not-active",
 					100,
