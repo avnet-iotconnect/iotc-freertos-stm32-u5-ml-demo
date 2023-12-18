@@ -3,7 +3,8 @@
 
 ## Firmware Flashing
 * Download and install a serial console application (TeraTerm for example) and STM32CubeProgrammer
-* Download and extract [b_u585i_iot02a_ntz_v1_1.zip](https://saleshosted.z13.web.core.windows.net/demo/st/b_u585i_iot02a_ntz_v1_1.zip)
+* Download and extract [b_u585i_iot02a_ntz_v1_2_1.zip](https://saleshosted.z13.web.core.windows.net/demo/st/b_u585i_iot02a_ntz_v1_2_1.zip)
+* This is a non-TFM project. If tustzone is enabled on your board, please disable before programming.
 * Connect the board with a Micro USB to a PC cable located on the top of the board.
 Do not connect the USB-C port or the micro USB port at the bottom.  
 * Open the STM32CubeProgrammer and connect it to the board by clicking the *Connect* button on the top right.
@@ -63,6 +64,7 @@ Note the capital letter string *CD* value like "XG2Y2M1" which we will use as *i
 ## Configuring Device Connection Parameters
 * Enter the following commands on the serial terminal to configure the MQTT connection:
   * conf set thing_name your-device-id
+     *  To take advantage of the GPS location feature, the user should assign their device one of the following names to correspond with a unique GPS location:  ml-ai-demo-01, ml-ai-demo-02, ml-ai-demo-03, or ml-ai-demo-04.
   * conf set iotc_cd your-cd
   * conf set mqtt_endpoint your-endpoint
   * conf set mqtt_port 8883
