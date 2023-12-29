@@ -52,7 +52,7 @@
 #define MQTT_SUBSCRIBE_TOPIC_STR_LEN           	( 256 )
 
 // @brief 	Size of statically allocated buffers for holding payloads.
-#define confgPAYLOAD_BUFFER_LENGTH           	( 256 )
+#define confgPAYLOAD_BUFFER_LENGTH           	( 1024 )
 
 // @brief	Size of statically allocated buffers for holding topic names and payloads.
 #define MQTT_PUBLISH_MAX_LEN                 ( 1024 )
@@ -476,7 +476,7 @@ static void incoming_message_callback( void * pvIncomingPublishCallbackContext, 
 
     ( void ) pvIncomingPublishCallbackContext;
 
-    LogInfo("iotc mqtt client - incoming_message_callback");
+    LogInfo("<<< %.*s",  pxPublishInfo->payloadLength, pxPublishInfo->pPayload);
 
     /* Create a message that contains the incoming MQTT payload to the logger,
      * terminating the string first. */
@@ -485,6 +485,7 @@ static void incoming_message_callback( void * pvIncomingPublishCallbackContext, 
         cTerminatedString[ pxPublishInfo->payloadLength ] = 0x00;
     } else {
         memcpy( ( void * ) cTerminatedString, pxPublishInfo->pPayload, confgPAYLOAD_BUFFER_LENGTH );
+        LogWarn(" C2D Message truncated! ");
         cTerminatedString[ confgPAYLOAD_BUFFER_LENGTH - 1 ] = 0x00;
     }
 

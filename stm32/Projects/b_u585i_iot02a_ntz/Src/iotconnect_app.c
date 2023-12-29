@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <inttypes.h>
 
 /* Kernel includes. */
 #include "FreeRTOS.h"
@@ -49,7 +50,7 @@
 #include "b_u585i_iot02a.h"
 
 // Constants
-#define APP_VERSION 			"01.00.06"		// Version string in telemetry data
+#define APP_VERSION 			"01.00.00"		// Version string in telemetry data
 #define MQTT_PUBLISH_PERIOD_MS 	( 3000 )		// Size of statically allocated buffers for holding topic names and payloads.
 
 // @brief	IOTConnect configuration defined by application
@@ -57,9 +58,9 @@ static IotConnectAwsrtosConfig awsrtos_config;
 
 // Prototypes
 static BaseType_t init_sensors( void );
-static char* create_telemetry_json(IotclMessageHandle msg, BSP_MOTION_SENSOR_Axes_t accel_data,
-								BSP_MOTION_SENSOR_Axes_t gyro_data, BSP_MOTION_SENSOR_Axes_t mag_data);
+static char* create_telemetry_json(IotclMessageHandle msg);
 static void on_command(IotclEventData data);
+static void on_ota(IotclEventData data);
 static void command_status(IotclEventData data, bool status, const char *command_name, const char *message);
 
 
@@ -104,7 +105,7 @@ void iotconnect_app( void * pvParameters )
 	config->env = "<none>";
 	config->duid = device_id;
 	config->cmd_cb = on_command;
-	config->ota_cb = NULL;
+	config->ota_cb = on_ota;
 	config->status_cb = NULL;
 	config->auth_info.type = IOTC_X509;
 	// use TLS_ROOT_CA_CERT_LABEL just to bypass it for now
@@ -132,26 +133,17 @@ void iotconnect_app( void * pvParameters )
 #endif
 
     while (1) {
-        /* Interpret sensor data */
-        int32_t sensor_error = BSP_ERROR_NONE;
-        BSP_MOTION_SENSOR_Axes_t xAcceleroAxes, xGyroAxes, xMagnetoAxes;
 
-        sensor_error = BSP_MOTION_SENSOR_GetAxes( 0, MOTION_GYRO, &xGyroAxes );
-        sensor_error |= BSP_MOTION_SENSOR_GetAxes( 0, MOTION_ACCELERO, &xAcceleroAxes );
-        sensor_error |= BSP_MOTION_SENSOR_GetAxes( 1, MOTION_MAGNETO, &xMagnetoAxes );
+		IotclMessageHandle message = iotcl_telemetry_create();
+		char* json_message = create_telemetry_json(message);
 
-        if (sensor_error == BSP_ERROR_NONE) {
-            IotclMessageHandle message = iotcl_telemetry_create();
-            char* json_message = create_telemetry_json(message, xAcceleroAxes, xGyroAxes, xMagnetoAxes);
+		if (json_message == NULL) {
+			LogError("Could not create telemetry data\n");
+			vTaskDelete( NULL );
+		}
 
-            if (json_message == NULL) {
-            	LogError("Could not create telemetry data\n");
-                vTaskDelete( NULL );
-            }
-
-			iotconnect_sdk_send_packet(json_message);  // underlying code will report an error
-			iotcl_destroy_serialized(json_message);
-        }
+		iotconnect_sdk_send_packet(json_message);  // underlying code will report an error
+		iotcl_destroy_serialized(json_message);
 
         vTaskDelay( pdMS_TO_TICKS( MQTT_PUBLISH_PERIOD_MS ) );
     }
@@ -180,15 +172,42 @@ static BaseType_t init_sensors( void )
 }
 
 
+static void send_faux_telemetry_data(IotclMessageHandle msg, BSP_MOTION_SENSOR_Axes_t* accel) {
+	int32_t x = abs(accel->z);
+	int32_t y = abs(accel->x);
+	int32_t z = abs(accel->y);
+	z = abs(z - 1000); // subtract 1G from z axis which could also be negative, so we flip
+	int32_t combined = x + y + z;
+
+	// check for trigger
+	if (combined > 100) {
+	    iotcl_telemetry_set_number(msg, "temperature", 123.0F);
+	} else {
+		iotcl_telemetry_set_number(msg, "temperature", 10.0F);
+	}
+}
+
 /* @brief 	Create JSON message containing telemetry data to publish
  *
  */
-static char *create_telemetry_json(IotclMessageHandle msg, BSP_MOTION_SENSOR_Axes_t accel_data,
-								BSP_MOTION_SENSOR_Axes_t gyro_data, BSP_MOTION_SENSOR_Axes_t mag_data) {
+static char *create_telemetry_json(IotclMessageHandle msg) {
+    /* Interpret sensor data */
+    int32_t sensor_error;
+    BSP_MOTION_SENSOR_Axes_t accel_data, gyro_data, mag_data;
+
+    sensor_error = BSP_MOTION_SENSOR_GetAxes( 0, MOTION_GYRO, &gyro_data );
+    sensor_error |= BSP_MOTION_SENSOR_GetAxes( 0, MOTION_ACCELERO, &accel_data );
+    sensor_error |= BSP_MOTION_SENSOR_GetAxes( 1, MOTION_MAGNETO, &mag_data );
+
+    if (sensor_error != BSP_ERROR_NONE) {
+    	return NULL;
+    }
 
     // Optional. The first time you create a data point, the current timestamp will be automatically added
     // TelemetryAddWith* calls are only required if sending multiple data points in one packet.
     iotcl_telemetry_add_with_iso_time(msg, NULL);
+
+    send_faux_telemetry_data(msg,  &accel_data);
 
     iotcl_telemetry_set_number(msg, "gyro_x", gyro_data.x);
     iotcl_telemetry_set_number(msg, "gyro_y", gyro_data.y);
@@ -275,3 +294,60 @@ static void command_status(IotclEventData data, bool status, const char *command
 	iotconnect_sdk_send_packet(ack);
 	free((void*) ack);
 }
+
+static bool is_app_version_same_as_ota(const char *version) {
+    return strcmp(APP_VERSION, version) == 0;
+}
+
+static bool app_needs_ota_update(const char *version) {
+    return strcmp(APP_VERSION, version) < 0;
+}
+
+static void on_ota(IotclEventData data) {
+    const char *message = NULL;
+    char *url = iotcl_clone_download_url(data, 0);
+    bool success = false;
+    if (NULL != url) {
+    	LogInfo("Download URL is: %s\r\n", url);
+        const char *version = iotcl_clone_sw_version(data);
+        if (!version) return; // TODO: figure this out
+
+        if (is_app_version_same_as_ota(version)) {
+        	LogInfo("OTA request for same version %s. Sending success\r\n", version);
+            success = true;
+            message = "Version is matching";
+        } else if (app_needs_ota_update(version)) {
+        	LogInfo("OTA update is required for version %s.\r\n", version);
+            success = false;
+            message = "Not implemented";
+        } else {
+        	LogInfo("Device firmware version %s is newer than OTA version %s. Sending failure\r\n", APP_VERSION,
+                    version);
+            // Not sure what to do here. The app version is better than OTA version.
+            // Probably a development version, so return failure?
+            // The user should decide here.
+            success = false;
+            message = "Device firmware version is newer";
+        }
+
+        free((void*) url);
+        free((void*) version);
+    } else {
+        // compatibility with older events
+        // This app does not support FOTA with older back ends, but the user can add the functionality
+        const char *command = iotcl_clone_command(data);
+        if (NULL != command) {
+            // URL will be inside the command
+        	LogInfo("Command is: %s\r\n", command);
+            message = "Old back end URLS are not supported by the app";
+            free((void*) command);
+        }
+    }
+    const char *ack = iotcl_create_ack_string_and_destroy_event(data, success, message);
+    if (NULL != ack) {
+    	LogInfo("Sent OTA ack: %s\r\n", ack);
+        iotconnect_sdk_send_packet(ack);
+        free((void*) ack);
+    }
+}
+
