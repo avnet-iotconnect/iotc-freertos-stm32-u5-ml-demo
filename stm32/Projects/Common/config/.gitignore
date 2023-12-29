@@ -1,5 +1,6 @@
 /*
 
 !/.gitignore
+!/iotconnect_config.h
 !/kvstore_config.h
 !/lwipopts.h
