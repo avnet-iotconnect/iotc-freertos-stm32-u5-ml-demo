@@ -79,6 +79,8 @@ void iotconnect_app( void * pvParameters )
 
     result = init_sensors();
 
+    LogInfo( "### STARTING APP VERSION %s ###", APP_VERSION );
+
     if(result != pdTRUE) {
         LogError( "Error while initializing motion sensors." );
         vTaskDelete( NULL );
@@ -288,11 +290,74 @@ static void command_status(IotclEventData data, bool status, const char *command
     	return;
     }
 
-	LogInfo("command: %s status=%s: %s\r\n", command_name, status ? "OK" : "Failed", message);
-	LogInfo("Sent CMD ack: %s\r\n", ack);
+	LogInfo("command: %s status=%s: %s", command_name, status ? "OK" : "Failed", message);
+	LogInfo("Sent CMD ack: %s", ack);
 	vTaskDelay(100);
 	iotconnect_sdk_send_packet(ack);
 	free((void*) ack);
+}
+
+// Parses the URL into host and resource strings which will be malloced
+// Ensure to free the two pointers on success
+static int split_url(const char *url, char **host_name, char**resource) {
+    size_t host_name_start = 0;
+    size_t url_len = strlen(url);
+
+    if (!host_name || !resource) {
+    	LogError("split_url: Invalid usage");
+        return -1;
+    }
+    *host_name = NULL;
+    *resource = NULL;
+    int slash_count = 0;
+    for (size_t i = 0; i < url_len; i++) {
+        if (url[i] == '/') {
+            slash_count++;
+            if (slash_count == 2) {
+                host_name_start = i + 1;
+            } else if (slash_count == 3) {
+                const size_t slash_start = i;
+                const size_t host_name_len = i - host_name_start;
+                const size_t resource_len = url_len - i;
+                *host_name = malloc(host_name_len + 1); //+1 for null
+                if (NULL == *host_name) {
+                    return -2;
+                }
+                memcpy(*host_name, &url[host_name_start], host_name_len);
+                (*host_name)[host_name_len] = 0; // terminate the string
+
+                *resource = malloc(resource_len + 1); //+1 for null
+                if (NULL == *resource) {
+                    free(*host_name);
+                    return -3;
+                }
+                memcpy(*resource, &url[slash_start], resource_len);
+                (*resource)[resource_len] = 0; // terminate the string
+
+                return 0;
+            }
+        }
+    }
+    return -4; // URL could not be parsed
+}
+
+static int start_ota(char *url) {
+    char * host_name;
+    char * resource;
+
+    int status = split_url(url, &host_name, &resource);
+    if (status) {
+        LogError("start_ota: Error while splitting the URL, code: 0x%x", status);
+        return status;
+    }
+
+    extern void https_download_fw(const char* host, const char* path);
+    https_download_fw(host_name, resource);
+
+    free(host_name);
+    free(resource);
+
+    return status;
 }
 
 static bool is_app_version_same_as_ota(const char *version) {
@@ -310,25 +375,27 @@ static void on_ota(IotclEventData data) {
     if (NULL != url) {
     	LogInfo("Download URL is: %s\r\n", url);
         const char *version = iotcl_clone_sw_version(data);
-        if (!version) return; // TODO: figure this out
-
-        if (is_app_version_same_as_ota(version)) {
-        	LogInfo("OTA request for same version %s. Sending success\r\n", version);
+        if (!version) {
             success = true;
-            message = "Version is matching";
-        } else if (app_needs_ota_update(version)) {
-        	LogInfo("OTA update is required for version %s.\r\n", version);
-            success = false;
-            message = "Not implemented";
+            message = "Failed to parse message";
         } else {
-        	LogInfo("Device firmware version %s is newer than OTA version %s. Sending failure\r\n", APP_VERSION,
-                    version);
-            // Not sure what to do here. The app version is better than OTA version.
-            // Probably a development version, so return failure?
-            // The user should decide here.
-            success = false;
-            message = "Device firmware version is newer";
+        	// ignore wrong app versions in this application
+            success = true;
+            if (is_app_version_same_as_ota(version)) {
+            	LogWarn("OTA request for same version %s. Sending successn", version);
+            } else if (app_needs_ota_update(version)) {
+            	LogWarn("OTA update is required for version %s.", version);
+            }  else {
+            	LogWarn("Device firmware version %s is newer than OTA version %s. Sending failuren", APP_VERSION,
+                        version);
+                // Not sure what to do here. The app version is better than OTA version.
+                // Probably a development version, so return failure?
+                // The user should decide here.
+            }
+
+            start_ota(url);
         }
+
 
         free((void*) url);
         free((void*) version);
@@ -338,14 +405,14 @@ static void on_ota(IotclEventData data) {
         const char *command = iotcl_clone_command(data);
         if (NULL != command) {
             // URL will be inside the command
-        	LogInfo("Command is: %s\r\n", command);
+        	LogInfo("Command is: %s", command);
             message = "Old back end URLS are not supported by the app";
             free((void*) command);
         }
     }
     const char *ack = iotcl_create_ack_string_and_destroy_event(data, success, message);
     if (NULL != ack) {
-    	LogInfo("Sent OTA ack: %s\r\n", ack);
+    	LogInfo("Sent OTA ack: %s", ack);
         iotconnect_sdk_send_packet(ack);
         free((void*) ack);
     }

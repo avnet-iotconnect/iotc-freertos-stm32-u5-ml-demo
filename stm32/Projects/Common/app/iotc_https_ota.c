@@ -219,7 +219,7 @@ static void setup_request(HTTPRequestInfo_t* request, const char* method, const 
     request->reqFlags = HTTP_REQUEST_KEEP_ALIVE_FLAG;
 }
 
-static void https_download_fw(const char* host, const char* path) {
+void https_download_fw(const char* host, const char* path) {
 	TlsTransportStatus_t tls_transport_status;
 	HTTPStatus_t http_status;
 	OtaPalStatus_t pal_status;
