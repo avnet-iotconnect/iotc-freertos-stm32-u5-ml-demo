@@ -53,15 +53,13 @@
 // Constants
 #define APP_VERSION 			"01.00.00"		// Version string in telemetry data
 #define MQTT_PUBLISH_PERIOD_MS 	( 3000 )		// Size of statically allocated buffers for holding topic names and payloads.
-#define LED_BLINK_PERIOD_MS 500  // Blink period in milliseconds
-
 // Temperature Simulation Parameters
 static bool simulateTemperature = false;
-static TickType_t simStartTime;
-static float presetTempF = 0.0f;  // Preset temperature
+static float presetTempF = 65.0f;  // Preset temperature
 static bool targetTemperatureReached = false;
 static bool grillState = false; // False means grill is off
 static int evenSurface = 1; // true means grill is on an even surface
+static float currentTempF = 65.0f; // Initialize with start temperature
 
 // @brief	IOTConnect configuration defined by application
 static IotConnectAwsrtosConfig awsrtos_config;
@@ -73,28 +71,23 @@ static void on_command(IotclEventData data);
 static void on_ota(IotclEventData data);
 static void command_status(IotclEventData data, bool status, const char *command_name, const char *message);
 static float simulateTemperatureRise(void);
-static float currentTempF = 65.0f; // Current temperature, initialize with start temperature
+
 static float simulateTemperatureRise() {
     if (!simulateTemperature) {
         return currentTempF; // Return the current temperature
     }
 
-    TickType_t currentTime = xTaskGetTickCount();
-    float elapsedSec = (float)(currentTime - simStartTime) / pdMS_TO_TICKS(1000);
-    float rateOfChange = 5.0f; // Rate of temperature change per second
+    float rateOfChange = 20.0f; // Rate of temperature change per second
+//    float interval = 2.0f; // Interval in seconds between function calls
     float tempDifference = presetTempF - currentTempF;
-    float tempChange = rateOfChange * elapsedSec;
+//    float tempChange = rateOfChange * interval;
 
-    if (fabs(tempDifference) < fabs(tempChange)) {
+    if (fabs(tempDifference) < rateOfChange) {
         currentTempF = presetTempF;
         targetTemperatureReached = true; // Target temperature reached
     } else {
+        currentTempF += (tempDifference > 0) ? rateOfChange : -rateOfChange;
         targetTemperatureReached = false; // Still transitioning
-        if (tempDifference > 0) {
-            currentTempF += tempChange;
-        } else {
-            currentTempF -= tempChange;
-        }
     }
     return currentTempF;
 }
@@ -108,15 +101,11 @@ static float simulateTemperatureRise() {
 void iotconnect_app( void * pvParameters )
 {
 	(void) pvParameters;
-
-    BaseType_t result = pdFALSE;
-    static TickType_t lastBlinkTime = 0;
     static bool ledState = false;
-    result = init_sensors();
 
-    if(result != pdTRUE) {
-        LogError( "Error while initializing motion sensors." );
-        vTaskDelete( NULL );
+    if (init_sensors() != pdTRUE) {
+        LogError("Error while initializing motion sensors.");
+        vTaskDelete(NULL);
     }
 
     // Get some settings from non-volatile storage.  These can be set on the command line
@@ -201,22 +190,21 @@ void iotconnect_app( void * pvParameters )
             iotcl_destroy_serialized(json_message);
         }
 
-        TickType_t currentTime = xTaskGetTickCount();
-        if (currentTempF == 65.0f) {
-                    BSP_LED_Off(LED_RED); // Turn off the red LED
-        } else if (!targetTemperatureReached) {
-            if (currentTime - lastBlinkTime >= pdMS_TO_TICKS(LED_BLINK_PERIOD_MS)) {
-                lastBlinkTime = currentTime; // Correctly update the last blink time
-                ledState = !ledState;        // Toggle the LED state
-                if (ledState) {
-                    BSP_LED_On(LED_RED);
-                } else {
-                    BSP_LED_Off(LED_RED);
-                }
-            }
-        } else {
             BSP_LED_On(LED_RED); // Keep the LED on when the target temperature is reached
         }
+//        TickType_t currentTime = xTaskGetTickCount();
+    if (currentTempF <= 65.0f) {
+            BSP_LED_Off(LED_RED); // Turn off the red LED
+    } else if (!targetTemperatureReached) {
+    	ledState = !ledState;        // Toggle the LED state
+    	if (ledState) {
+    		BSP_LED_On(LED_RED);
+    	} else {
+    		BSP_LED_Off(LED_RED);
+    	}
+    } else {
+    	BSP_LED_On(LED_RED); // Keep the LED on when the target temperature is reached
+    }
 
         vTaskDelay(pdMS_TO_TICKS(MQTT_PUBLISH_PERIOD_MS));
     }
@@ -244,7 +232,7 @@ static BaseType_t init_sensors( void )
     return( lBspError == BSP_ERROR_NONE ? pdTRUE : pdFALSE );
 }
 
-
+/*
 static void send_faux_telemetry_data(IotclMessageHandle msg, BSP_MOTION_SENSOR_Axes_t* accel) {
 	int32_t x = abs(accel->z);
 	int32_t y = abs(accel->x);
@@ -259,7 +247,7 @@ static void send_faux_telemetry_data(IotclMessageHandle msg, BSP_MOTION_SENSOR_A
 		iotcl_telemetry_set_number(msg, "temperature", 10.0F);
 	}
 }
-
+*/
 /* @brief 	Create JSON message containing telemetry data to publish
  *
  */
@@ -271,7 +259,7 @@ static char *create_telemetry_json(IotclMessageHandle msg, BSP_MOTION_SENSOR_Axe
     // TelemetryAddWith* calls are only required if sending multiple data points in one packet.
     iotcl_telemetry_add_with_iso_time(msg, NULL);
 
-    send_faux_telemetry_data(msg,  &accel_data);
+//    send_faux_telemetry_data(msg,  &accel_data);
 
     iotcl_telemetry_set_number(msg, "gyro_x", gyro_data.x);
     iotcl_telemetry_set_number(msg, "gyro_y", gyro_data.y);
@@ -338,7 +326,7 @@ static void on_command(IotclEventData data) {
 			float tempVal;
 			LogInfo("Command received: '%s'", command);
 			int sscanfResult = sscanf(command, "set-temp %f", &tempVal);
-			LogInfo("sscanf result: %d, parsed value: %f", sscanfResult, tempVal);
+//			LogInfo("sscanf result: %d, parsed value: %f", sscanfResult, tempVal);
 
 			if (sscanfResult == 1) {
 				if (grillState) {  // Check if grill is on
@@ -346,7 +334,7 @@ static void on_command(IotclEventData data) {
 								if (sscanf(command, "set-temp %f", &tempVal) == 1) {
 									presetTempF = tempVal;
 									simulateTemperature = true;  // Start simulation
-									simStartTime = xTaskGetTickCount();
+//									simStartTime = xTaskGetTickCount();
 									LogInfo("Temperature set to %.2f", presetTempF);
 									command_status(data, true, command, "Temperature set");
 								} else {
@@ -368,6 +356,7 @@ static void on_command(IotclEventData data) {
 		            } else if (strstr(command, "off")) {
 		                grillState = false;
 		                BSP_LED_Off(LED_GREEN);  // Turn off green LED
+		                presetTempF = 65.0f; // Reset temperature
 		                command_status(data, true, "grill_switch", "Grill is OFF");
 		            } else {
 		                command_status(data, false, "grill_switch", "Invalid command value");

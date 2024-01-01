@@ -167,7 +167,7 @@ static void vHeartbeatTask( void * pvParameters )
     while( 1 )
     {
         vTaskDelay( pdMS_TO_TICKS( 1000 ) );
-        HAL_GPIO_TogglePin( LED_GREEN_GPIO_Port, LED_GREEN_Pin );
+ //       HAL_GPIO_TogglePin( LED_GREEN_GPIO_Port, LED_GREEN_Pin );
     }
 }
 
