@@ -411,8 +411,8 @@ static BaseType_t publish_and_wait_for_ack( MQTTAgentHandle_t xAgentHandle,
                 xResult = pdFALSE;
             }
         } else {
-            LogError( "Timed out while waiting for publish ACK or Sent event. xTimeout = %d",
-            							pdMS_TO_TICKS( MQTT_PUBLISH_NOTIFICATION_WAIT_MS ) );
+            //LogError( "Timed out while waiting for publish ACK or Sent event. xTimeout = %d",
+            //							pdMS_TO_TICKS( MQTT_PUBLISH_NOTIFICATION_WAIT_MS ) );
             xResult = pdFALSE;
         }
     } else {
