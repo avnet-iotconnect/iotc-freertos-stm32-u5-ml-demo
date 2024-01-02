@@ -229,15 +229,15 @@ void vInitTask( void * pvArgs )
     configASSERT( xResult == pdTRUE );
 
 
-    xResult = xTaskCreate( vOTAUpdateTask, "OTAUpdate", 4096, NULL, tskIDLE_PRIORITY + 1, NULL );
-    configASSERT( xResult == pdTRUE );
-
 #elif 0
 
     extern void vIOTC_Ota_Handler(void *);
     xResult = xTaskCreate( vIOTC_Ota_Handler, "IOTC OTA", 4096, NULL, tskIDLE_PRIORITY + 1, NULL );
     configASSERT( xResult == pdTRUE );
 #else
+    xResult = xTaskCreate( vOTAUpdateTask, "OTAUpdate", 4096, NULL, tskIDLE_PRIORITY + 1, NULL );
+    configASSERT( xResult == pdTRUE );
+
     void sntp_task( void * pvParameters );
     xResult = xTaskCreate( &sntp_task, "sntp", 4096, NULL, 23, NULL );
     configASSERT( xResult == pdTRUE );
