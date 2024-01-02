@@ -639,6 +639,10 @@ static void otaTimerCallback( OtaTimerId_t otaTimerId )
 
 static bool platformInSelftest( void )
 {
+    // Nik: can't figure out how to tell this subsystem that self-test is done without interfering with AWS OTA Jobs
+    // It would be nice to add the ability for self test and have this code reset if something doesn't report success.
+    return false;
+#if 0
     bool selfTest = false;
 
     /*
@@ -650,6 +654,7 @@ static bool platformInSelftest( void )
     }
 
     return selfTest;
+#endif
 }
 
 static OtaErr_t updateJobStatusFromImageState( OtaImageState_t state,
@@ -742,7 +747,8 @@ static OtaErr_t setImageStateWithReason( OtaImageState_t stateToSet,
         err = OtaErrNoActiveJob;
     }
 
-    if( err != OtaErrNone )
+    // From IoTConnect we call this function while OTA Agent state is not in sync. Ignore OtaErrNoActiveJob
+    if( err != OtaErrNone && err != OtaErrNoActiveJob)
     {
         LogWarn( ( "Failed to set image state with reason: "
                    "OtaErr_t=%s"
