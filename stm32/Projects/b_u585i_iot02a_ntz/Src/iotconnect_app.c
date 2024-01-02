@@ -25,6 +25,7 @@
 #include "mbedtls_transport.h"
 
 #include "sys_evt.h"
+#include "ota.h"
 
 /* MQTT library includes. */
 #include "core_mqtt.h"
@@ -51,7 +52,7 @@
 #include "b_u585i_iot02a.h"
 
 // Constants
-#define APP_VERSION 			"01.00.00"		// Version string in telemetry data
+#define APP_VERSION 			"01.01.00"		// Version string in telemetry data
 #define MQTT_PUBLISH_PERIOD_MS 	( 3000 )		// Size of statically allocated buffers for holding topic names and payloads.
 // Temperature Simulation Parameters
 static bool simulateTemperature = false;
@@ -71,6 +72,7 @@ static void on_command(IotclEventData data);
 static void on_ota(IotclEventData data);
 static void command_status(IotclEventData data, bool status, const char *command_name, const char *message);
 static float simulateTemperatureRise(void);
+static bool is_ota_agent_file_initialized(void);
 
 static float simulateTemperatureRise() {
     if (!simulateTemperature) {
@@ -103,7 +105,7 @@ void iotconnect_app( void * pvParameters )
 	(void) pvParameters;
     static bool ledState = false;
 
-    LogInfo( "### STARTING APP VERSION %s ###", APP_VERSION );
+    LogInfo( " ***** STARTING APP VERSION %s *****", APP_VERSION );
 
     if (init_sensors() != pdTRUE) {
         LogError("Error while initializing motion sensors.");
@@ -149,13 +151,26 @@ void iotconnect_app( void * pvParameters )
     char *telemetry_cd = KVStore_getStringHeap(CS_IOTC_CD, NULL);
 
     if (mqtt_endpoint_url == NULL || telemetry_cd == NULL) {
-    	LogError ("IOTC configuration, mqtt_endpoint, telemetry_cd not set");
+    	LogError("IOTC configuration, mqtt_endpoint, telemetry_cd not set");
     	vTaskDelete( NULL );
     }
 
     awsrtos_config.host = mqtt_endpoint_url;
 	awsrtos_config.telemetry_cd = telemetry_cd;
 	iotconnect_sdk_init(&awsrtos_config);
+
+	while (!is_ota_agent_file_initialized()) {
+		LogInfo("Waiting for OTA agent (state=%d)...", OTA_GetState());
+        vTaskDelay(pdMS_TO_TICKS(2000));
+	}
+	switch (OTA_SetImageState(OtaImageStateAccepted)) {
+	    case OtaErrNone:
+	    case OtaErrNoActiveJob:
+	        // these should be ok
+	        break;
+	    default:
+    	    LogError("ERROR: Failed to OTA_SetImageState. This image may reboot in failed state");
+	}
 #endif
 
     while (1) {
@@ -207,6 +222,20 @@ void iotconnect_app( void * pvParameters )
 
         vTaskDelay(pdMS_TO_TICKS(MQTT_PUBLISH_PERIOD_MS));
     }
+}
+
+static bool is_ota_agent_file_initialized(void)
+{
+	// not really sure what state we should be looking for, but these should work:
+	switch(OTA_GetState()) {
+		case OtaAgentStateWaitingForJob:
+		case OtaAgentStateNoTransition:
+		case OtaAgentStateReady:
+		case OtaAgentStateSuspended:
+			return true;
+		default:
+			return false;
+	}
 }
 
 
