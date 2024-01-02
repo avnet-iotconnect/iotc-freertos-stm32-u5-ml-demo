@@ -103,8 +103,6 @@ void iotconnect_app( void * pvParameters )
 	(void) pvParameters;
     static bool ledState = false;
 
-    BaseType_t result = pdFALSE;
-
     LogInfo( "### STARTING APP VERSION %s ###", APP_VERSION );
 
     if (init_sensors() != pdTRUE) {
@@ -194,7 +192,6 @@ void iotconnect_app( void * pvParameters )
             iotcl_destroy_serialized(json_message);
         }
 
-        BSP_LED_On(LED_RED); // Keep the LED on when the target temperature is reached
 		if (currentTempF <= 65.0f) {
 				BSP_LED_Off(LED_RED); // Turn off the red LED
 		} else if (!targetTemperatureReached) {
@@ -230,7 +227,7 @@ static BaseType_t init_sensors( void )
     lBspError |= BSP_MOTION_SENSOR_Init( 1, MOTION_MAGNETO );
     lBspError |= BSP_MOTION_SENSOR_Enable( 1, MOTION_MAGNETO );
     lBspError |= BSP_MOTION_SENSOR_SetOutputDataRate( 1, MOTION_MAGNETO, 1.0f );
-  	BSP_LED_Off(LED_GREEN); // Ensure the grill switch is off at startup 
+  	BSP_LED_Off(LED_GREEN); // Ensure the grill switch is off at startup
     return( lBspError == BSP_ERROR_NONE ? pdTRUE : pdFALSE );
 }
 
