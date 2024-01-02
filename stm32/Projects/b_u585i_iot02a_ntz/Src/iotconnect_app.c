@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <inttypes.h>
+#include <math.h>
 
 /* Kernel includes. */
 #include "FreeRTOS.h"
@@ -52,18 +53,44 @@
 // Constants
 #define APP_VERSION 			"01.00.00"		// Version string in telemetry data
 #define MQTT_PUBLISH_PERIOD_MS 	( 3000 )		// Size of statically allocated buffers for holding topic names and payloads.
+// Temperature Simulation Parameters
+static bool simulateTemperature = false;
+static float presetTempF = 65.0f;  // Preset temperature
+static bool targetTemperatureReached = false;
+static bool grillState = false; // False means grill is off
+static int evenSurface = 1; // true means grill is on an even surface
+static float currentTempF = 65.0f; // Initialize with start temperature
 
 // @brief	IOTConnect configuration defined by application
 static IotConnectAwsrtosConfig awsrtos_config;
 
 // Prototypes
 static BaseType_t init_sensors( void );
-static char* create_telemetry_json(IotclMessageHandle msg);
+static char* create_telemetry_json(IotclMessageHandle msg, BSP_MOTION_SENSOR_Axes_t accel_data, BSP_MOTION_SENSOR_Axes_t gyro_data, BSP_MOTION_SENSOR_Axes_t mag_data, float simulatedTempF);
 static void on_command(IotclEventData data);
 static void on_ota(IotclEventData data);
 static void command_status(IotclEventData data, bool status, const char *command_name, const char *message);
+static float simulateTemperatureRise(void);
 
+static float simulateTemperatureRise() {
+    if (!simulateTemperature) {
+        return currentTempF; // Return the current temperature
+    }
 
+    float rateOfChange = 20.0f; // Rate of temperature change per second
+//    float interval = 2.0f; // Interval in seconds between function calls
+    float tempDifference = presetTempF - currentTempF;
+//    float tempChange = rateOfChange * interval;
+
+    if (fabs(tempDifference) < rateOfChange) {
+        currentTempF = presetTempF;
+        targetTemperatureReached = true; // Target temperature reached
+    } else {
+        currentTempF += (tempDifference > 0) ? rateOfChange : -rateOfChange;
+        targetTemperatureReached = false; // Still transitioning
+    }
+    return currentTempF;
+}
 /* @brief	Main IoT-Connect application task
  *
  * @param	pvParameters, argument passed by xTaskCreate
@@ -74,16 +101,15 @@ static void command_status(IotclEventData data, bool status, const char *command
 void iotconnect_app( void * pvParameters )
 {
 	(void) pvParameters;
+    static bool ledState = false;
 
     BaseType_t result = pdFALSE;
 
-    result = init_sensors();
-
     LogInfo( "### STARTING APP VERSION %s ###", APP_VERSION );
 
-    if(result != pdTRUE) {
-        LogError( "Error while initializing motion sensors." );
-        vTaskDelete( NULL );
+    if (init_sensors() != pdTRUE) {
+        LogError("Error while initializing motion sensors.");
+        vTaskDelete(NULL);
     }
 
     // Get some settings from non-volatile storage.  These can be set on the command line
@@ -135,19 +161,54 @@ void iotconnect_app( void * pvParameters )
 #endif
 
     while (1) {
+        int32_t sensor_error = BSP_ERROR_NONE;
+        BSP_MOTION_SENSOR_Axes_t xAcceleroAxes, xGyroAxes, xMagnetoAxes;
 
-		IotclMessageHandle message = iotcl_telemetry_create();
-		char* json_message = create_telemetry_json(message);
+        sensor_error = BSP_MOTION_SENSOR_GetAxes(0, MOTION_GYRO, &xGyroAxes);
+        sensor_error |= BSP_MOTION_SENSOR_GetAxes(0, MOTION_ACCELERO, &xAcceleroAxes);
+        sensor_error |= BSP_MOTION_SENSOR_GetAxes(1, MOTION_MAGNETO, &xMagnetoAxes);
 
-		if (json_message == NULL) {
-			LogError("Could not create telemetry data\n");
-			vTaskDelete( NULL );
+        if (xAcceleroAxes.x > 100 || xAcceleroAxes.x < -100) {
+            grillState = false;  // Turn off the grill
+            presetTempF = 65.0f; // Reset temperature
+            evenSurface = 0; // Set even-surface telemetry to false
+            BSP_LED_Off(LED_GREEN);
+            // Log and handle this event
+            LogInfo("Unsafe accelerometer reading detected. Grill turned off for safety.");
+        } else {
+            evenSurface = 1; // Set even-surface to true after consecutive safe readings
+             }
+
+        if (sensor_error == BSP_ERROR_NONE) {
+            float simulatedTempF = simulateTemperatureRise();  // Get simulated temperature
+
+            IotclMessageHandle message = iotcl_telemetry_create();
+            char* json_message = create_telemetry_json(message, xAcceleroAxes, xGyroAxes, xMagnetoAxes, simulatedTempF);
+
+            if (json_message == NULL) {
+                LogError("Could not create telemetry data\n");
+                vTaskDelete(NULL);
+            }
+
+            iotconnect_sdk_send_packet(json_message);  // Send telemetry data
+            iotcl_destroy_serialized(json_message);
+        }
+
+        BSP_LED_On(LED_RED); // Keep the LED on when the target temperature is reached
+		if (currentTempF <= 65.0f) {
+				BSP_LED_Off(LED_RED); // Turn off the red LED
+		} else if (!targetTemperatureReached) {
+			ledState = !ledState;        // Toggle the LED state
+			if (ledState) {
+				BSP_LED_On(LED_RED);
+			} else {
+				BSP_LED_Off(LED_RED);
+			}
+		} else {
+			BSP_LED_On(LED_RED); // Keep the LED on when the target temperature is reached
 		}
 
-		iotconnect_sdk_send_packet(json_message);  // underlying code will report an error
-		iotcl_destroy_serialized(json_message);
-
-        vTaskDelay( pdMS_TO_TICKS( MQTT_PUBLISH_PERIOD_MS ) );
+        vTaskDelay(pdMS_TO_TICKS(MQTT_PUBLISH_PERIOD_MS));
     }
 }
 
@@ -169,11 +230,11 @@ static BaseType_t init_sensors( void )
     lBspError |= BSP_MOTION_SENSOR_Init( 1, MOTION_MAGNETO );
     lBspError |= BSP_MOTION_SENSOR_Enable( 1, MOTION_MAGNETO );
     lBspError |= BSP_MOTION_SENSOR_SetOutputDataRate( 1, MOTION_MAGNETO, 1.0f );
-
+  	BSP_LED_Off(LED_GREEN); // Ensure the grill switch is off at startup 
     return( lBspError == BSP_ERROR_NONE ? pdTRUE : pdFALSE );
 }
 
-
+/*
 static void send_faux_telemetry_data(IotclMessageHandle msg, BSP_MOTION_SENSOR_Axes_t* accel) {
 	int32_t x = abs(accel->z);
 	int32_t y = abs(accel->x);
@@ -188,28 +249,19 @@ static void send_faux_telemetry_data(IotclMessageHandle msg, BSP_MOTION_SENSOR_A
 		iotcl_telemetry_set_number(msg, "temperature", 10.0F);
 	}
 }
-
+*/
 /* @brief 	Create JSON message containing telemetry data to publish
  *
  */
-static char *create_telemetry_json(IotclMessageHandle msg) {
-    /* Interpret sensor data */
-    int32_t sensor_error;
-    BSP_MOTION_SENSOR_Axes_t accel_data, gyro_data, mag_data;
+static char *create_telemetry_json(IotclMessageHandle msg, BSP_MOTION_SENSOR_Axes_t accel_data,
+								BSP_MOTION_SENSOR_Axes_t gyro_data, BSP_MOTION_SENSOR_Axes_t mag_data, float simulatedTempF) {
 
-    sensor_error = BSP_MOTION_SENSOR_GetAxes( 0, MOTION_GYRO, &gyro_data );
-    sensor_error |= BSP_MOTION_SENSOR_GetAxes( 0, MOTION_ACCELERO, &accel_data );
-    sensor_error |= BSP_MOTION_SENSOR_GetAxes( 1, MOTION_MAGNETO, &mag_data );
-
-    if (sensor_error != BSP_ERROR_NONE) {
-    	return NULL;
-    }
 
     // Optional. The first time you create a data point, the current timestamp will be automatically added
     // TelemetryAddWith* calls are only required if sending multiple data points in one packet.
     iotcl_telemetry_add_with_iso_time(msg, NULL);
 
-    send_faux_telemetry_data(msg,  &accel_data);
+//    send_faux_telemetry_data(msg,  &accel_data);
 
     iotcl_telemetry_set_number(msg, "gyro_x", gyro_data.x);
     iotcl_telemetry_set_number(msg, "gyro_y", gyro_data.y);
@@ -227,6 +279,11 @@ static char *create_telemetry_json(IotclMessageHandle msg) {
 
     iotcl_telemetry_set_string(msg, "version", APP_VERSION);
 
+    // Add the simulated temperature to the telemetry data
+    iotcl_telemetry_set_number(msg, "simulated_temp", simulatedTempF);
+    iotcl_telemetry_set_number(msg, "set_temp", presetTempF);
+    iotcl_telemetry_set_bool(msg, "grill_state", grillState);
+    iotcl_telemetry_set_number(msg, "even_surface", evenSurface);
     const char* str = iotcl_create_serialized_string(msg, false);
 
 	if (str == NULL) {
@@ -267,6 +324,45 @@ static void on_command(IotclEventData data) {
 				BSP_LED_Off(LED_GREEN);
 			}
 			command_status(data, true, command, "OK");
+		} else if (NULL != strstr(command, "set-temp")) {
+			float tempVal;
+			LogInfo("Command received: '%s'", command);
+			int sscanfResult = sscanf(command, "set-temp %f", &tempVal);
+//			LogInfo("sscanf result: %d, parsed value: %f", sscanfResult, tempVal);
+
+			if (sscanfResult == 1) {
+				if (grillState) {  // Check if grill is on
+
+								if (sscanf(command, "set-temp %f", &tempVal) == 1) {
+									presetTempF = tempVal;
+									simulateTemperature = true;  // Start simulation
+//									simStartTime = xTaskGetTickCount();
+									LogInfo("Temperature set to %.2f", presetTempF);
+									command_status(data, true, command, "Temperature set");
+								} else {
+									command_status(data, false, command, "Invalid temperature value");
+								}
+							} else {
+								// Handle the case when grill is off
+								LogInfo("Grill is off. Cannot set temperature.");
+								command_status(data, false, command, "Grill is off. Cannot set temperature.");
+							}
+			} else {
+			    LogInfo("Failed to parse set-temp command");
+			}
+		} else if (strstr(command, "grill_switch")) {
+		            if (strstr(command, "on")) {
+		                grillState = true;
+		                BSP_LED_On(LED_GREEN);  // Turn on green LED
+		                command_status(data, true, "grill_switch", "Grill is ON");
+		            } else if (strstr(command, "off")) {
+		                grillState = false;
+		                BSP_LED_Off(LED_GREEN);  // Turn off green LED
+		                presetTempF = 65.0f; // Reset temperature
+		                command_status(data, true, "grill_switch", "Grill is OFF");
+		            } else {
+		                command_status(data, false, "grill_switch", "Invalid command value");
+		            }
 		} else {
 			LogInfo("command not recognized");
 			command_status(data, false, command, "Not implemented");
