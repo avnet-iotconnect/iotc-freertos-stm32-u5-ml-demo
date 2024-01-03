@@ -50,6 +50,7 @@
 // BSP-Specific
 #include "stm32u5xx.h"
 #include "b_u585i_iot02a.h"
+#include "b_u585i_iot02a_env_sensors.h"
 
 // Constants
 #define APP_VERSION 			"01.01.00"		// Version string in telemetry data
@@ -59,7 +60,6 @@ static bool simulateTemperature = false;
 static float presetTempF = 65.0f;  // Preset temperature
 static bool targetTemperatureReached = false;
 static bool grillState = false; // False means grill is off
-static int evenSurface = 1; // true means grill is on an even surface
 static float currentTempF = 65.0f; // Initialize with start temperature
 
 // @brief	IOTConnect configuration defined by application
@@ -67,32 +67,13 @@ static IotConnectAwsrtosConfig awsrtos_config;
 
 // Prototypes
 static BaseType_t init_sensors( void );
-static char* create_telemetry_json(IotclMessageHandle msg, BSP_MOTION_SENSOR_Axes_t accel_data, BSP_MOTION_SENSOR_Axes_t gyro_data, BSP_MOTION_SENSOR_Axes_t mag_data, float simulatedTempF);
+static char* create_telemetry_json(IotclMessageHandle msg);
 static void on_command(IotclEventData data);
 static void on_ota(IotclEventData data);
 static void command_status(IotclEventData data, bool status, const char *command_name, const char *message);
-static float simulateTemperatureRise(void);
+static float simulateTemperatureRise(float ambient_temp);
 static bool is_ota_agent_file_initialized(void);
 
-static float simulateTemperatureRise() {
-    if (!simulateTemperature) {
-        return currentTempF; // Return the current temperature
-    }
-
-    float rateOfChange = 20.0f; // Rate of temperature change per second
-//    float interval = 2.0f; // Interval in seconds between function calls
-    float tempDifference = presetTempF - currentTempF;
-//    float tempChange = rateOfChange * interval;
-
-    if (fabs(tempDifference) < rateOfChange) {
-        currentTempF = presetTempF;
-        targetTemperatureReached = true; // Target temperature reached
-    } else {
-        currentTempF += (tempDifference > 0) ? rateOfChange : -rateOfChange;
-        targetTemperatureReached = false; // Still transitioning
-    }
-    return currentTempF;
-}
 /* @brief	Main IoT-Connect application task
  *
  * @param	pvParameters, argument passed by xTaskCreate
@@ -174,41 +155,20 @@ void iotconnect_app( void * pvParameters )
 #endif
 
     while (1) {
-        int32_t sensor_error = BSP_ERROR_NONE;
-        BSP_MOTION_SENSOR_Axes_t xAcceleroAxes, xGyroAxes, xMagnetoAxes;
 
-        sensor_error = BSP_MOTION_SENSOR_GetAxes(0, MOTION_GYRO, &xGyroAxes);
-        sensor_error |= BSP_MOTION_SENSOR_GetAxes(0, MOTION_ACCELERO, &xAcceleroAxes);
-        sensor_error |= BSP_MOTION_SENSOR_GetAxes(1, MOTION_MAGNETO, &xMagnetoAxes);
+        IotclMessageHandle message = iotcl_telemetry_create();
+        char* json_message = create_telemetry_json(message);
 
-        if (xAcceleroAxes.x > 100 || xAcceleroAxes.x < -100) {
-            grillState = false;  // Turn off the grill
-            presetTempF = 65.0f; // Reset temperature
-            evenSurface = 0; // Set even-surface telemetry to false
-            BSP_LED_Off(LED_GREEN);
-            // Log and handle this event
-            LogInfo("Unsafe accelerometer reading detected. Grill turned off for safety.");
-        } else {
-            evenSurface = 1; // Set even-surface to true after consecutive safe readings
-             }
-
-        if (sensor_error == BSP_ERROR_NONE) {
-            float simulatedTempF = simulateTemperatureRise();  // Get simulated temperature
-
-            IotclMessageHandle message = iotcl_telemetry_create();
-            char* json_message = create_telemetry_json(message, xAcceleroAxes, xGyroAxes, xMagnetoAxes, simulatedTempF);
-
-            if (json_message == NULL) {
-                LogError("Could not create telemetry data\n");
-                vTaskDelete(NULL);
-            }
-
-            iotconnect_sdk_send_packet(json_message);  // Send telemetry data
-            iotcl_destroy_serialized(json_message);
+        if (json_message == NULL) {
+            LogError("Could not create telemetry data\n");
+            vTaskDelete(NULL);
         }
 
+        iotconnect_sdk_send_packet(json_message);  // Send telemetry data
+        iotcl_destroy_serialized(json_message);
+
 		if (currentTempF <= 65.0f) {
-				BSP_LED_Off(LED_RED); // Turn off the red LED
+			BSP_LED_Off(LED_RED); // Turn off the red LED
 		} else if (!targetTemperatureReached) {
 			ledState = !ledState;        // Toggle the LED state
 			if (ledState) {
@@ -223,6 +183,27 @@ void iotconnect_app( void * pvParameters )
         vTaskDelay(pdMS_TO_TICKS(MQTT_PUBLISH_PERIOD_MS));
     }
 }
+
+static float simulateTemperatureRise(float ambient_temp) {
+    if (!simulateTemperature) {
+        return currentTempF; // Return the current temperature
+    }
+
+    float rateOfChange = 20.0f; // Rate of temperature change per second
+//    float interval = 2.0f; // Interval in seconds between function calls
+    float tempDifference = presetTempF - currentTempF;
+//    float tempChange = rateOfChange * interval;
+
+    if (fabs(tempDifference) < rateOfChange) {
+        currentTempF = presetTempF;
+        targetTemperatureReached = true; // Target temperature reached
+    } else {
+        currentTempF += (tempDifference > 0) ? rateOfChange : -rateOfChange;
+        targetTemperatureReached = false; // Still transitioning
+    }
+    return currentTempF;
+}
+
 
 static bool is_ota_agent_file_initialized(void)
 {
@@ -256,65 +237,97 @@ static BaseType_t init_sensors( void )
     lBspError |= BSP_MOTION_SENSOR_Init( 1, MOTION_MAGNETO );
     lBspError |= BSP_MOTION_SENSOR_Enable( 1, MOTION_MAGNETO );
     lBspError |= BSP_MOTION_SENSOR_SetOutputDataRate( 1, MOTION_MAGNETO, 1.0f );
+
+    lBspError = BSP_ENV_SENSOR_Init( 0, ENV_TEMPERATURE);
+    lBspError |= BSP_ENV_SENSOR_Init( 0, ENV_HUMIDITY);
+    lBspError |= BSP_ENV_SENSOR_Init( 1, ENV_TEMPERATURE);
+    lBspError |= BSP_ENV_SENSOR_Init( 1, ENV_PRESSURE);
+
   	BSP_LED_Off(LED_GREEN); // Ensure the grill switch is off at startup
+
+
+
     return( lBspError == BSP_ERROR_NONE ? pdTRUE : pdFALSE );
 }
 
-/*
-static void send_faux_telemetry_data(IotclMessageHandle msg, BSP_MOTION_SENSOR_Axes_t* accel) {
-	int32_t x = abs(accel->z);
-	int32_t y = abs(accel->x);
-	int32_t z = abs(accel->y);
-	z = abs(z - 1000); // subtract 1G from z axis which could also be negative, so we flip
-	int32_t combined = x + y + z;
+static bool is_tilted(int32_t x, int32_t y, int32_t z) {
+	// ignore signs
+	x = abs(x);
+	y = abs(y);
+	z = abs(z);
+	z = 1000 - z; // subtract 1G from z axis
+	double force_vector = sqrt(pow(x, 2) + pow(x, 2) + pow(x, 2));
 
 	// check for trigger
-	if (combined > 100) {
-	    iotcl_telemetry_set_number(msg, "temperature", 123.0F);
-	} else {
-		iotcl_telemetry_set_number(msg, "temperature", 10.0F);
-	}
+	return (force_vector > 100.0f);
 }
-*/
+
 /* @brief 	Create JSON message containing telemetry data to publish
  *
  */
-static char *create_telemetry_json(IotclMessageHandle msg, BSP_MOTION_SENSOR_Axes_t accel_data,
-								BSP_MOTION_SENSOR_Axes_t gyro_data, BSP_MOTION_SENSOR_Axes_t mag_data, float simulatedTempF) {
+static char *create_telemetry_json(IotclMessageHandle msg) {
+
+    int32_t sensor_error = BSP_ERROR_NONE;
+    BSP_MOTION_SENSOR_Axes_t accel_data, gyro_data, mag_data;
+    float temperature0, temperature1, hum, pressure;
+
+    sensor_error = BSP_MOTION_SENSOR_GetAxes(0, MOTION_GYRO, &accel_data);
+    sensor_error |= BSP_MOTION_SENSOR_GetAxes(0, MOTION_ACCELERO, &gyro_data);
+    sensor_error |= BSP_MOTION_SENSOR_GetAxes(1, MOTION_MAGNETO, &mag_data);
+    sensor_error |= BSP_ENV_SENSOR_GetValue(0, ENV_TEMPERATURE, &temperature0);
+    sensor_error |= BSP_ENV_SENSOR_GetValue(0, ENV_HUMIDITY, &hum);
+    sensor_error |= BSP_ENV_SENSOR_GetValue(1, ENV_TEMPERATURE, &temperature1);
+    sensor_error |= BSP_ENV_SENSOR_GetValue(1, ENV_PRESSURE, &pressure);
 
 
     // Optional. The first time you create a data point, the current timestamp will be automatically added
     // TelemetryAddWith* calls are only required if sending multiple data points in one packet.
     iotcl_telemetry_add_with_iso_time(msg, NULL);
-
-//    send_faux_telemetry_data(msg,  &accel_data);
-
-    iotcl_telemetry_set_number(msg, "gyro_x", gyro_data.x);
-    iotcl_telemetry_set_number(msg, "gyro_y", gyro_data.y);
-    iotcl_telemetry_set_number(msg, "gyro_z", gyro_data.z);
-
-    iotcl_telemetry_set_number(msg, "accelerometer_x", accel_data.x);
-    iotcl_telemetry_set_number(msg, "accelerometer_y", accel_data.y);
-    iotcl_telemetry_set_number(msg, "accelerometer_z", accel_data.z);
-
-#if 0
-    iotcl_telemetry_set_number(msg, "magnetometer_x", mag_data.x);
-    iotcl_telemetry_set_number(msg, "magnetometer_y", mag_data.y);
-    iotcl_telemetry_set_number(msg, "magnetometer_z", mag_data.z);
-#endif
-
     iotcl_telemetry_set_string(msg, "version", APP_VERSION);
 
-    // Add the simulated temperature to the telemetry data
-    iotcl_telemetry_set_number(msg, "simulated_temp", simulatedTempF);
-    iotcl_telemetry_set_number(msg, "set_temp", presetTempF);
-    iotcl_telemetry_set_bool(msg, "grill_state", grillState);
-    iotcl_telemetry_set_number(msg, "even_surface", evenSurface);
+    if (BSP_ERROR_NONE != sensor_error) {
+        // send what we can and fail on rest if sensors failed
+        LogInfo("Error: Unable to get all sensor values!");
+    } else {
+        iotcl_telemetry_set_number(msg, "gyro_x", gyro_data.xval);
+        iotcl_telemetry_set_number(msg, "gyro_y", gyro_data.yval);
+        iotcl_telemetry_set_number(msg, "gyro_z", gyro_data.zval);
+
+        iotcl_telemetry_set_number(msg, "accelerometer_x", accel_data.xval);
+        iotcl_telemetry_set_number(msg, "accelerometer_y", accel_data.yval);
+        iotcl_telemetry_set_number(msg, "accelerometer_z", accel_data.zval);
+
+        iotcl_telemetry_set_number(msg, "magnetometer_x", mag_data.xval);
+        iotcl_telemetry_set_number(msg, "magnetometer_y", mag_data.yval);
+        iotcl_telemetry_set_number(msg, "magnetometer_z", mag_data.zval);
+
+        iotcl_telemetry_set_number(msg, "temperature0", temperature0);
+        iotcl_telemetry_set_number(msg, "temperature1", temperature1);
+        iotcl_telemetry_set_number(msg, "humidity", hum);
+        iotcl_telemetry_set_number(msg, "pressure", pressure);
+
+        if (!is_tilted(accel_data.xval, accel_data.yval, accel_data.zval)) {
+            grillState = false;  // Turn off the grill
+            presetTempF = 65.0f; // Reset temperature
+            BSP_LED_Off(LED_GREEN);
+            // Log and handle this event
+            iotcl_telemetry_set_number(msg, "even_surface", 0);
+            LogInfo("Unsafe accelerometer reading detected. Grill turned off for safety.");
+        } else {
+            iotcl_telemetry_set_number(msg, "even_surface", 1);
+         }
+
+        // Add the simulated temperature to the telemetry data
+        iotcl_telemetry_set_number(msg, "simulated_temp", simulateTemperatureRise(temperature0));
+        iotcl_telemetry_set_number(msg, "set_temp", presetTempF);
+        iotcl_telemetry_set_bool(msg, "grill_state", grillState);
+    }
+
     const char* str = iotcl_create_serialized_string(msg, false);
 
-	if (str == NULL) {
-		LogInfo( "serialized_string is NULL");
-	}
+    if (str == NULL) {
+        LogInfo( "serialized_string is NULL");
+    }
 
 	iotcl_telemetry_destroy(msg);
     return (char* )str;

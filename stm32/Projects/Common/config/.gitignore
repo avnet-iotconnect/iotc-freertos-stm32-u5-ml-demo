@@ -5,3 +5,4 @@
 !/kvstore_config.h
 !/lwipopts.h
 !/FreeRTOSConfig.h
+!/mx25lm51245g_conf.h
