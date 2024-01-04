@@ -61,6 +61,7 @@ static bool targetTemperatureReached = false;
 static bool grillState = false; // False means grill is off
 static int evenSurface = 1; // true means grill is on an even surface
 static float currentTempF = 65.0f; // Initialize with start temperature
+static bool is_downloading = false;
 
 // @brief	IOTConnect configuration defined by application
 static IotConnectAwsrtosConfig awsrtos_config;
@@ -192,7 +193,7 @@ void iotconnect_app( void * pvParameters )
             evenSurface = 1; // Set even-surface to true after consecutive safe readings
              }
 
-        if (sensor_error == BSP_ERROR_NONE) {
+        if (sensor_error == BSP_ERROR_NONE && !is_downloading) {
             float simulatedTempF = simulateTemperatureRise();  // Get simulated temperature
 
             IotclMessageHandle message = iotcl_telemetry_create();
@@ -205,6 +206,8 @@ void iotconnect_app( void * pvParameters )
 
             iotconnect_sdk_send_packet(json_message);  // Send telemetry data
             iotcl_destroy_serialized(json_message);
+        } else if (is_downloading) {
+            ; // LogInfo("Not sending telemetry. Download in progress...");
         }
 
 		if (currentTempF <= 65.0f) {
@@ -515,7 +518,9 @@ static void on_ota(IotclEventData data) {
                 // The user should decide here.
             }
 
+            is_downloading = true;
             start_ota(url);
+            is_downloading = false; // we should reset soon
         }
 
 
