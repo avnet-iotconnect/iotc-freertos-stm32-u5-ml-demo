@@ -72,6 +72,11 @@
 			<locationURI>WORKSPACE_LOC/Drivers/BSP/Components/lsm6dso</locationURI>
 		</link>
 		<link>
+			<name>Drivers/stm32wb_at</name>
+			<type>2</type>
+			<locationURI>WORKSPACE_LOC/Drivers/BSP/Components/stm32wb_at</locationURI>
+		</link>
+		<link>
 			<name>Libraries/AudioPreProcessing</name>
 			<type>2</type>
 			<locationURI>virtual:/virtual</locationURI>

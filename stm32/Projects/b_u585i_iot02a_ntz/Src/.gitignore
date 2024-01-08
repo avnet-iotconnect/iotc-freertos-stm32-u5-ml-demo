@@ -3,4 +3,6 @@
 !/.gitignore
 !/app_main.c
 !/ota_pal
-!/iotconnect_app.c
+!/iotconnect_app.
+!/ble_at_appli.c
+!/ble_at_main.c

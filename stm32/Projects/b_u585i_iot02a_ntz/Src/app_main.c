@@ -246,6 +246,10 @@ void vInitTask( void * pvArgs )
     xResult = xTaskCreate( iotconnect_app, "IoTConnect", 4096, NULL, tskIDLE_PRIORITY + 1, NULL );
     configASSERT( xResult == pdTRUE );
 
+    extern void ble_at_main(void * pvParameters);
+    xResult = xTaskCreate( ble_at_main, "BLE AT", 2048, NULL, tskIDLE_PRIORITY + 2, NULL );
+    configASSERT( xResult == pdTRUE );
+
 #endif
 
 //    xResult = xTaskCreate( vEnvironmentSensorPublishTask, "EnvSense", 1024, NULL, 6, NULL );
@@ -326,11 +330,16 @@ int main( void )
 
     hw_init();
 
+    extern UART_HandleTypeDef* vInitUartBtEarly(void);
+    vInitUartBtEarly();
+
+
     vRelocateVectorTable();
 
     vLoggingInit();
 
     vDetermineResetSource();
+
 
     LogInfo( "HW Init Complete." );
 
