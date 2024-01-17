@@ -70,7 +70,7 @@ void ble_at_main(void)
   printf("--------------------------------------------\n");
 
   vTaskDelay(pdMS_TO_TICKS(4000));
-  status |= stm32wb_at_Init(&at_buffer[0], sizeof(at_buffer));
+  status |= stm32wb_at_Init(&at_buffer_isr[0], sizeof(at_buffer_isr));
   status |= stm32wb_at_client_Init();
 
   /* Test the UART communication link with BLE module */

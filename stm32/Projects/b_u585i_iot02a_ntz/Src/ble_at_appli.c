@@ -34,11 +34,13 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+#define AT_BUFFFER_SIZE 64
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 static uint8_t received_byte;
 static uint32_t tick_snapshot, tick_snapshot2;
-uint8_t at_buffer[64];
+uint8_t at_buffer_isr[AT_BUFFFER_SIZE];
+uint8_t at_buffer_task[AT_BUFFFER_SIZE];
 uint8_t global_svc_index = 0;
 bool tx_complete = false;
 
@@ -154,9 +156,6 @@ uint8_t stm32wb_at_ll_Transmit(uint8_t *pBuff, uint16_t Size)
   uint8_t status;
 
   status = HAL_UART_Transmit(&huart4, pBuff, Size, 0xFFFF);
-//  while (!tx_complete) {
-//	  ;
-//  }
   printf("  TX: %s",pBuff);
 
   return status;
@@ -171,7 +170,8 @@ void stm32wb_at_ll_Async_receive(uint8_t new_frame)
 {
   if(new_frame != 0)
   {
-    printf("  RX: %s\r\n",at_buffer);
+	  strcpy((char *)at_buffer_task, (char *)at_buffer_isr);
+	  printf("  RX: %s\r\n", at_buffer_isr);
   }
   HAL_UART_Receive_IT(&huart4, &received_byte, 1);
 
@@ -195,18 +195,12 @@ static void ble_at_uart_rx_done_cb(UART_HandleTypeDef *UartHandle)
 
   return;
 }
+
 static void ble_at_uart_tx_done_cb( UART_HandleTypeDef * UartHandle )
 {
 	(void) UartHandle;
 
     printf("  TXDONE\r\n");
-    tx_complete = true;
-}
-static void ble_at_uart_rx_half_done_cb( UART_HandleTypeDef * UartHandle )
-{
-	(void) UartHandle;
-
-    printf("  TXHALFDONE\r\n");
     tx_complete = true;
 }
 
@@ -215,7 +209,6 @@ HAL_StatusTypeDef ble_at_appli_register_uart_callbacks(UART_HandleTypeDef* uart_
 	  HAL_StatusTypeDef xHalRslt = HAL_OK;
       xHalRslt |= HAL_UART_RegisterCallback( uart_handle, HAL_UART_RX_COMPLETE_CB_ID, ble_at_uart_rx_done_cb );
       xHalRslt |= HAL_UART_RegisterCallback( uart_handle, HAL_UART_TX_COMPLETE_CB_ID, ble_at_uart_tx_done_cb );
-
       xHalRslt |= HAL_UART_RegisterCallback( uart_handle, HAL_UART_ERROR_CB_ID, ble_at_uart_error_cb );
 	  return xHalRslt;
 }
