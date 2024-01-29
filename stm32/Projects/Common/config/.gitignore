@@ -2,4 +2,3 @@
 
 !/.gitignore
 !/kvstore_config.h
-!/lwipopts.h
