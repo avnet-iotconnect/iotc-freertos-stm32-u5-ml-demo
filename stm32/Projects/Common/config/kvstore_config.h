@@ -36,7 +36,6 @@ typedef enum KvStoreEnum
     CS_WIFI_SSID,
     CS_WIFI_CREDENTIAL,
     CS_TIME_HWM_S_1970,
-	CS_IOTC_CD,
     CS_NUM_KEYS
 } KVStoreKey_t;
 

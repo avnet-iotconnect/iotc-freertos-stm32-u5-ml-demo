@@ -78,7 +78,7 @@ extern UBaseType_t uxRand(void);
 #define MIC_EVT_DMA_HALF (1 << 0)
 #define MIC_EVT_DMA_CPLT (1 << 1)
 
-#define APP_VERSION "1.2.2"
+#define APP_VERSION "1.4.0"
 
 /**
  * @brief Defines the structure to use as the command callback context in this
@@ -337,7 +337,7 @@ static void on_c2d_message( void * subscription_context, MQTTPublishInfo_t * pub
     		LogError("Failed %s!", THRESHOLD_CMD);
     	}
     } else if (NULL != strstr(payload, INACTIVITY_TIMEOUT_CMD)) {
-    	if (scan_command_number_arg(payload, INACTIVITY_TIMEOUT_CMD, &confidence_threshold)) {
+    	if (scan_command_number_arg(payload, INACTIVITY_TIMEOUT_CMD, &inactivity_timeout)) {
         	LogInfo("New inactivity timeout: %d", inactivity_timeout);
     	} else {
     		LogError("Failed %s!", INACTIVITY_TIMEOUT_CMD);
@@ -436,16 +436,12 @@ void vMicSensorPublishTask(void *pvParameters)
 
     char pcDeviceId[64];
     size_t uxDevNameLen = KVStore_getString(CS_CORE_THING_NAME, pcDeviceId, 64);
-    char pcIotcCd[IOTC_CD_MAX_LEN]; // IoTConnect CD value
-    size_t uxCidLen = KVStore_getString(CS_IOTC_CD, pcIotcCd, IOTC_CD_MAX_LEN);
 
     size_t uxTopicLen = 0;
-	if (uxDevNameLen > 0 && uxCidLen > 0)
+	if (uxDevNameLen > 0)
 	{
-        sprintf(pcTopicString, "$aws/rules/msg_d2c_rpt/%s/%s/2.1/0", pcDeviceId, pcIotcCd);
-		//strcpy(pcTopicString, "$aws/rules/msg_d2c_rpt/IotStagedevIotStackCode8EEB880A-nik1/XG4ENRV/2.1/0");
+		sprintf(pcTopicString, "$aws/rules/msg_d2c_rpt/%s/2.1/0", pcDeviceId);
         uxTopicLen = strlen(pcTopicString);
-		//uxTopicLen = strlcat(pcTopicString, "/" MQTT_PUBLISH_TOPIC, MQTT_PUBLICH_TOPIC_STR_LEN);
 	}
 
 	if ((uxTopicLen == 0) || (uxTopicLen >= MQTT_PUBLICH_TOPIC_STR_LEN))
@@ -593,22 +589,20 @@ void vMicSensorPublishTask(void *pvParameters)
 			bytesWritten = (size_t) snprintf(payloadBuf, (size_t)MQTT_PUBLISH_MAX_LEN,
 					"{\"d\":"\
 					"[{\"d\":{\"version\":\"MLDEMO-" APP_VERSION "\",\"class\":\"%s\",\"confidence\":%d,\"position\":[%s]}}]"\
-					",\"mt\":0,\"cd\":\"%s\"}",
+					",\"mt\":0}",
 					detected_class,
 					confidence_score_percent,
-					device_position,
-					pcIotcCd
+					device_position
 			);
 		} else if (idle_needs_sending && !is_detection_blocked()) {
 			idle_needs_sending = false;
 			bytesWritten = (size_t) snprintf(payloadBuf, (size_t)MQTT_PUBLISH_MAX_LEN,
 					"{\"d\":"\
 					"[{\"d\":{\"version\":\"MLDEMO-" APP_VERSION "\",\"class\":\"%s\",\"confidence\":%d,\"position\":[%s]}}]"\
-					",\"mt\":0,\"cd\":\"%s\"}",
+					",\"mt\":0}",
 					"not-active",
 					100,
-					inactive_position,
-					pcIotcCd
+					inactive_position
 			);
 		} else {
 			// do not send anything
