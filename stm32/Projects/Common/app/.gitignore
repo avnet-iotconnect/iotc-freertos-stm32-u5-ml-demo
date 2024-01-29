@@ -1,9 +1,5 @@
 /*
 
 !/.gitignore
-
-!/mqtt
-
 !/iotc*
 !/mic_sensor_publish.c
-
