@@ -87,11 +87,6 @@
 			<locationURI>WORKSPACE_LOC/Drivers/CommonIO</locationURI>
 		</link>
 		<link>
-			<name>Libraries/IoTConnect</name>
-			<type>2</type>
-			<locationURI>virtual:/virtual</locationURI>
-		</link>
-		<link>
 			<name>Libraries/LittleFS</name>
 			<type>2</type>
 			<locationURI>WORKSPACE_LOC/Middleware/ARM/littlefs</locationURI>
@@ -112,9 +107,9 @@
 			<locationURI>WORKSPACE_LOC/Middleware/FreeRTOS/backoffAlgorithm/source</locationURI>
 		</link>
 		<link>
-			<name>Libraries/cJSON</name>
+			<name>Libraries/http-parser</name>
 			<type>2</type>
-			<locationURI>PARENT-2-PROJECT_LOC/Middleware/cJSON</locationURI>
+			<locationURI>WORKSPACE_LOC/Middleware/http-parser</locationURI>
 		</link>
 		<link>
 			<name>Libraries/coreHTTP</name>
@@ -155,11 +150,6 @@
 			<name>Libraries/freertos_kernel</name>
 			<type>2</type>
 			<locationURI>virtual:/virtual</locationURI>
-		</link>
-		<link>
-			<name>Libraries/http-parser</name>
-			<type>2</type>
-			<locationURI>WORKSPACE_LOC/Middleware/http-parser</locationURI>
 		</link>
 		<link>
 			<name>Libraries/lwip</name>
@@ -210,16 +200,6 @@
 			<name>Libraries/CMSIS/stm32u5xx</name>
 			<type>2</type>
 			<locationURI>WORKSPACE_LOC/Drivers/CMSIS/Device/ST/STM32U5xx/Include</locationURI>
-		</link>
-		<link>
-			<name>Libraries/IoTConnect/iotc-awsrtos-sdk-placeholder</name>
-			<type>2</type>
-			<locationURI>PARENT-2-PROJECT_LOC/Middleware/IoTConnect/iotc-awsrtos-sdk-placeholder</locationURI>
-		</link>
-		<link>
-			<name>Libraries/IoTConnect/iotc-c-lib</name>
-			<type>2</type>
-			<locationURI>PARENT-2-PROJECT_LOC/Middleware/IoTConnect/iotc-c-lib</locationURI>
 		</link>
 		<link>
 			<name>Libraries/STM32U5_HAL/Inc</name>

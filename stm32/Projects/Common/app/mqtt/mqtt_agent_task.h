@@ -2,7 +2,6 @@
 #define _MQTT_AGENT_TASK_H_
 
 #include "FreeRTOS.h"
-#include <stdbool.h>
 
 struct MQTTAgentTaskCtx;
 typedef struct MQTTAgentContext * MQTTAgentHandle_t;

@@ -69,21 +69,6 @@
 #define LWIP_NETIF_LINK_CALLBACK      1
 #define LWIP_NETIF_STATUS_CALLBACK    1
 
-
-/*
- * ------------------------------------
- * --- Internal Memory Pool Sizes -----
- * ------------------------------------
- */
-
-/*
- * MEMP_NUM_SYS_TIMEOUT is enlarged for the SNTP time synchronization
- * code so that it can use timeouts. Without this being enlarged SNTP
- * will busy wait and cause the hardware watchdog to reset the board.
- *
- */
-#define MEMP_NUM_SYS_TIMEOUT            (LWIP_NUM_SYS_TIMEOUT_INTERNAL + 1)
-
 /*
  * ------------------------------------
  * ---------- Socket options ----------
