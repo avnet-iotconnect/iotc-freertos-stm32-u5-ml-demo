@@ -228,10 +228,11 @@ void vInitTask( void * pvArgs )
     xResult = xTaskCreate( vMicSensorPublishTask, "MicSense", 1024, NULL, 6, NULL );
     configASSERT( xResult == pdTRUE );
 
-
+/*
+ * This agent causes issues with IoTConnect because it's not allowed to subscribe
     xResult = xTaskCreate( vOTAUpdateTask, "OTAUpdate", 4096, NULL, tskIDLE_PRIORITY + 1, NULL );
     configASSERT( xResult == pdTRUE );
-
+*/
 #else
 
     extern void vIOTC_Ota_Handler(void *);
