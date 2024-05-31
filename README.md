@@ -31,3 +31,4 @@ but nothing is recognized.
 
 * If you wish to try the project out on your board, see the [Quickstart Guide](QUICKSTART.md).
 * If you wish to compile and run this project, see the [Development Instructions](DEVELOPMENT.md).
+* If you wish to recreate the entire demonstration, see the [ML Audio Classifier Demo Setup Guide](DEMO.md).
