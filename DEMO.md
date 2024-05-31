@@ -1,5 +1,5 @@
 # ML Audio Classifier Demo:  Setup
-/media/Sound_classifier_dashboard.jpg
+<img src="media/sound-classifier-dashboard.png" alt="drawing" width="300"/>
 
 ## Overview
 This guide is designed to assist users in setting up and demonstrating an ML-based audio classification system using Avnet IoTConnect powered by AWS and the STMicroelectronics STM32U5 Discovery Kit built on the ultra-low-power STM32U585AII6Q microcontroller based on the Arm® Cortex®-M33 core with Arm® TrustZone®. This system demonstrates real-time machine learning inference on edge devices, highlighting the integration of cloud and IoT technologies.
