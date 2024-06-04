@@ -1,4 +1,4 @@
-# ML Audio Classifier Demo:  Setup
+# ML Audio Classifier: Demonstration Setup
 <img src="media/sound-classifier-dashboard.png" alt="drawing" width="300"/>
 
 ## Overview
@@ -45,8 +45,6 @@ Follow the [Quickstart Guide](https://github.com/avnet-iotconnect/iotc-freertos-
 -   **Explanation:** In this example, the timeout is set for 800 units, where each unit represents 1/100th of a second, totaling 8 seconds. If the device detects an audio event, it will not issue another alert for the same event type for the next 8 seconds, thereby managing the frequency of alerts effectively.
 
 ## Audio Samples
-<details>
-<summary>Expand</summary>
 Audio clips to use for this demo can be downloaded [here](https://saleshosted.z13.web.core.windows.net/demo/st/iotc-freertos-stm32-u5-ml-demo/audio-samples.zip)
 These clips have been extracted from the FDS50K libraries at [Freesound.org](https://annotator.freesound.org/fsd/release/FSD50K)  and edited as follows:
 
@@ -58,14 +56,13 @@ This curated sample group represents the types of activities that would be of in
 
 ![Event Notifications](https://saleshosted.z13.web.core.windows.net/media/stmicro/reinvent23/readme/MLstatuslabels.gif)
 
-</details>
-
 ## Demonstration Setup
 ### Overview
 The following section outlines the setup for demonstrating the Urban Sound Event Classifier.  In this configuration, 2 audio classification devices are acoustically isolated from one another, each representing 2 physical locations on a dashboard map. This demo setup uses an edge server to play the audio samples.  This edge server is connected to IoTConnect and uses the Python SDK to receive C2D commands, as well as send basic telemetry from the edge server.  The edge server will play the selected audio sample when the appropriate command is received to a connected audio device.  In addition, the edge server will play the audio sound on the chosen audio channel.
-### Materials
 
-- [STM32U5 Discovery Kit Board](https://www.avnet.com/shop/us/products/stmicroelectronics/b-u585i-iot02a-3074457345647217745)![enter image description here](https://www.st.com/bin/ecommerce/api/image.PF271412.en.feature-description-include-personalized-no-cpn-large.jpg)
+### Materials
+- [STM32U5 Discovery Kit Board](https://www.avnet.com/shop/us/products/stmicroelectronics/b-u585i-iot02a-3074457345647217745)
+
 - [Clear Pelican Case](https://www.amazon.com/gp/product/B0C73G2WXJ)
 	- The purpose of the case is the following:
 		- Group the demo components into and enclosed system that best represents a final product.
