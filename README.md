@@ -2,6 +2,7 @@
 
 ## Introduction 
 Avnet's Smart City Noise Detection Solution harnesses the power of IoT and AI to tackle the growing challenges of noise pollution and public safety in urban environments. By integrating advanced sensor technologies and real-time analytics, this solution provides city authorities with effective tools to monitor and mitigate noise disturbances, thereby enhancing the quality of life for residents and improving urban safety. Leveraging the robust capabilities of the B-U585I-IOT02A Discovery kit with STM32U5 Secure MCU for IoT, our solution is designed to deliver actionable insights, ensuring scalable, secure, and efficient urban management.
+
 <img src="media/sound-classifier-dashboard.png" alt="drawing" width="400"/>
 
 ## Project Scope
